@@ -13,22 +13,30 @@ from tkinter.ttk import Label
 from tkinter.ttk import LabelFrame
 from tkinter.ttk import Notebook
 
+import numpy as np
+
 from tooltip import create_tooltip
 
 
 class Questionnaire(Frame):
     """Interface for simple questionnaires."""
 
-    def __init__(self, master=None, fields=None):
+    def __init__(
+        self, master=None, fields=None, padx=1, pady=2, column_minsize=240
+    ):
         """Construct object."""
         super().__init__(master)
+        self.padx = padx
+        self.pady = pady
+        self.column_minsize = column_minsize
         self.master = master
         self.fields = fields
         self.create_widgets()
-        self.clear()
 
     def get_values(self):
         """Return a dictionary of all variable values."""
+        self.update_widgets()
+
         values = {}
         for name in self.variable:
             if not self.fields[name]["visible"]:
@@ -48,13 +56,15 @@ class Questionnaire(Frame):
                 values[name] = None
         return values
 
-    def clear(self, *args, **kwargs):
+    def init_widgets(self):
         """Clear all fields to default values."""
         if self.fields is None:
             return
 
         for name, desc in self.fields.items():
             self.variable[name].set(desc["default"])
+
+        self.update_widgets()
 
     def enable(self, name):
         """Show a widget by name."""
@@ -99,7 +109,9 @@ class Questionnaire(Frame):
 
             if desc["tab"] not in self.tab:
                 parent = Frame(self.notebook)
-                parent.columnconfigure(0, weight=1)
+                parent.columnconfigure(
+                    [0, 1], weight=1, minsize=self.column_minsize
+                )
                 self.notebook.add(parent, text=desc["tab"].capitalize())
                 self.tab[desc["tab"]] = parent
             else:
@@ -108,8 +120,17 @@ class Questionnaire(Frame):
             if "group" in desc:
                 if desc["group"] not in self.group:
                     group = LabelFrame(parent, text=desc["group"].capitalize())
-                    group.columnconfigure(0, weight=1)
-                    group.grid(row=i, column=0, columnspan=2, sticky="ew")
+                    group.columnconfigure(
+                        [0, 1], weight=1, minsize=self.column_minsize
+                    )
+                    group.grid(
+                        row=i,
+                        column=0,
+                        columnspan=2,
+                        sticky="ew",
+                        padx=self.padx,
+                        pady=9 * self.pady,
+                    )
                     self.group[desc["group"]] = group
                 else:
                     group = self.group[desc["group"]]
@@ -152,6 +173,8 @@ class Questionnaire(Frame):
                 self.variable[name] = StringVar(self)
             elif desc["type"] is float:
                 self.variable[name] = DoubleVar(self)
+                if "values" in desc:
+                    values = [np.round(v, 2) for v in values]
             else:
                 raise ValueError(f"unknown type '{desc['type']}'")
 
@@ -176,14 +199,55 @@ class Questionnaire(Frame):
                 self.widget[name] = desc["widget"](
                     parent, textvariable=self.variable[name]
                 )
-            self.widget[name].grid(row=i, column=1, sticky="ew")
+            self.widget[name].grid(
+                row=i, column=1, sticky="ew", padx=self.padx, pady=self.pady
+            )
 
             if "help" in desc:
                 create_tooltip(self.widget[name], desc["help"])
 
             if desc["widget"] is not Checkbutton:
                 self.label[name] = Label(parent, text=text + ":")
-                self.label[name].grid(row=i, column=0, sticky="ew")
+                self.label[name].grid(
+                    row=i,
+                    column=0,
+                    sticky="ew",
+                    padx=self.padx,
+                    pady=self.pady,
+                )
 
             if "visible" not in desc:
                 desc["visible"] = True
+
+        self.init_widgets()
+
+    def update_widgets(self, *args, **kwargs):
+        """Update widget states."""
+        if self.fields is None:
+            return
+
+        for name, desc in self.fields.items():
+            # TODO(schneiderfelipe): allow an analogous key "freeze", which
+            # does exactly the same as switch, but enables/disables the widget
+            # instead of showing/hiding it. self.enable and sefl.disable should
+            # then accept an argument policy="freeze" or policy="switch" to
+            # make things easier. Both "switch" (meaning available/unavailable)
+            # and "freeze" (meaning impossible to change) can be used at the
+            # same time.
+            if "switch" in desc:
+                if isinstance(desc["switch"], tuple):
+                    switch, trigger = desc["switch"]
+                    if isinstance(trigger, set):
+                        condition = self.variable[switch].get() in trigger
+                    elif callable(trigger):
+                        condition = trigger(self.variable[switch].get())
+                    else:
+                        condition = self.variable[switch].get() == trigger
+                else:
+                    switch = desc["switch"]
+                    condition = self.variable[switch].get()
+
+                if condition:
+                    self.enable(name)
+                else:
+                    self.disable(name)

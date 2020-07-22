@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 
-"""Simple ORCA graphical user interface."""
+"""Orcinus orca.
+
+Orcinus orca is a simple graphical user interface (GUI) for the ORCA quantum
+chemistry package.
+"""
 
 from tkinter import filedialog
 from tkinter import Spinbox
@@ -12,18 +16,34 @@ from tkinter.ttk import Entry
 from tkinter.ttk import Frame
 from tkinter.ttk import Style
 
+import numpy as np
+
 from questionnaire import Questionnaire
 
 
-class InputFrame(Frame):
+class InputGUI(Frame):
     """Interface for input generation."""
 
-    def __init__(self, master=None):
+    def __init__(self, master=None, padx=1, pady=2, column_minsize=240):
         """Construct object."""
         super().__init__(master)
+        self.padx = padx
+        self.pady = pady
+        self.column_minsize = column_minsize
         self.master = master
         self.create_widgets()
-        self.update()
+
+    def save(self):
+        """Ask user for filename and save the current input."""
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".inp",
+            filetypes=[("Input Files", "*.in*"), ("All Files", "*.*")],
+        )
+        if not filepath:
+            return
+        with open(filepath, "w") as f:
+            text = self.text.get("1.0", "end")
+            f.write(text)
 
     def create_widgets(self):
         """Populate object and its widgets."""
@@ -32,57 +52,69 @@ class InputFrame(Frame):
         self.save_button = Button(self, text="Save")
         self.questions = Questionnaire(
             self,
-            {
+            padx=self.padx,
+            pady=self.pady,
+            column_minsize=self.column_minsize,
+            fields={
                 "short description": {
-                    "help": "A one-line description for your calculation.",
+                    "help": ("A one-line description for your calculation."),
                     "widget": Entry,
                     "type": str,
                 },
+                # TODO(schneiderfelipe): support QM/MM calculations. In
+                # particular, give options for electrostatic embedding,
+                # capping method and choice of QM region.
+                # TODO(schneiderfelipe): support for NEB: "Number of transit
+                # points", "Climbing image"/"Transition state", convergence
+                # criteria, etc.
                 "task": {
-                    "group": "basic",
-                    "help": "The main task of your calculation.",
-                    "values": {
-                        "Single point": "SP",
-                        "Geometry optimization": "Opt",
-                        "Frequencies": "Freq",
-                        "Nudged elastic band": "NEB",
-                    },
+                    "group": "basic information",
+                    "help": ("The main task of your calculation."),
+                    "values": [
+                        "SP",
+                        "Opt",
+                        "Freq",
+                        "Opt Freq",
+                        "Scan",
+                        "OptTS",
+                        "OptTS Freq",
+                        "IRC",
+                        "NEB",
+                        "NEB Freq",
+                        "MD",
+                        "NoIter",
+                    ],
                 },
-                "optimization": {
-                    "group": "basic",
+                # TODO(schneiderfelipe): automatically select numerical
+                # frequencies when only that is available.
+                "numerical frequencies": {
+                    "group": "basic information",
                     "help": (
-                        "Whether to do a geometry optimization pior to "
-                        "the frequencies calculation."
-                    ),
-                    "widget": Checkbutton,
-                    "default": True,
-                },
-                "frequencies": {
-                    "group": "basic",
-                    "help": (
-                        "Whether to do a frequencies calculation after "
-                        "the nudged elastic band calculation."
+                        "Whether to do a numerical frequencies calculation."
                     ),
                     "widget": Checkbutton,
                     "default": False,
+                    "switch": ("task", lambda v: "Freq" in v),
                 },
                 "charge": {
-                    "group": "basic",
-                    "help": "Net charge of you calculation.",
-                    "widget": Spinbox,
+                    "group": "basic information",
                     "text": "Total charge",
+                    "help": ("Net charge of you calculation."),
+                    "widget": Spinbox,
                     "values": range(-100, 101),
                     "default": 0,
                 },
                 "multiplicity": {
-                    "group": "basic",
-                    "help": "Spin multiplicity of you calculation.",
-                    "widget": Spinbox,
+                    "group": "basic information",
                     "text": "Spin multiplicity",
+                    "help": ("Spin multiplicity of you calculation."),
+                    "widget": Spinbox,
                     "values": range(1, 101),
+                    "switch": "unrestricted",
                 },
                 "unrestricted": {
-                    "group": "basic",
+                    "group": "basic information",
+                    "text": "Unrestricted calculation",
                     "help": (
                         "Whether an unrestricted wavefunction should be "
                         "used."
@@ -90,61 +122,74 @@ class InputFrame(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
-                "corresponding orbitals": {
+                "uco": {  # TODO(schneiderfelipe): this goes somewhere else
+                    "text": "Corresponding orbitals",
                     "help": (
                         "Whether unrestricted corresponding orbitals "
                         "should be calculated."
                     ),
                     "widget": Checkbutton,
-                    "default": False,
+                    "values": {False: None, True: "UCO"},
+                    "switch": "unrestricted",
                 },
-                "model": {
-                    "group": "method",
-                    "help": "Class of calculation.",
-                    "values": ["HF", "DFTB", "DFT", "MP2", "CCSD"],
+                # TODO(schneiderfelipe): this should go to the broadest
+                # possible category, above even task.
+                "theory": {  # TODO(schneiderfelipe): use a better name
+                    "group": "level of theory",
+                    "help": ("Class of calculation."),
+                    "values": ["MM", "HF", "DFTB", "DFT", "MP2", "CCSD"],
                     "default": "DFT",
                 },
+                # TODO(schneiderfelipe): properly select it when e.g. MP2 Freq
                 "frozen core": {
-                    "group": "method",
+                    "group": "level of theory",
                     "help": (
                         "Whether the frozen core approximation should be "
                         "used."
                     ),
                     "widget": Checkbutton,
                     "values": {True: "FrozenCore", False: "NoFrozenCore"},
-                    "default": True,
+                    "switch": ("theory", {"MP2", "CCSD"}),
                 },
+                # TODO(schneiderfelipe): switch to a black-box model selector
                 "dlpno": {
-                    "group": "method",
+                    "group": "level of theory",
+                    "text": "DLPNO",
                     "help": (
                         "Whether the domain-based local pair natural "
                         "orbital approximation should be used."
                     ),
-                    "text": "DLPNO",
                     "widget": Checkbutton,
                     "default": True,
+                    "switch": ("theory", "CCSD"),
                 },
+                # TODO(schneiderfelipe): switch to a black-box model selector
                 "triples correction": {
-                    "group": "method",
+                    "group": "level of theory",
                     "help": (
                         "Whether perturbative triples correction should "
                         "be calculated used."
                     ),
                     "widget": Checkbutton,
                     "default": True,
+                    "switch": ("theory", "CCSD"),
                 },
                 "hamiltonian": {
-                    "group": "method",
-                    "help": "Which model Hamiltonian should be used.",
+                    "group": "level of theory",
+                    "help": ("Which model Hamiltonian should be used."),
                     "values": {"GFN1-xTB": "XTB1", "GFN2-xTB": "XTB2"},
                     "default": "GFN2-xTB",
+                    "switch": ("theory", "DFTB"),
                 },
+                # TODO(schneiderfelipe): allow selection of functional class
+                # (LDA, GGA, Meta-GGA, Hybrid, LR-Hybrid, Meta-Hybrid,
+                # Double-Hybrid and LR-Double-Hybrid)
                 "functional": {
-                    "group": "method",
-                    "help": "Which density functional should be used.",
-                    "text": "XC functional",
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
                     "values": {
-                        "LDA": "LDA",
+                        "LDA": "PWLDA",
                         "GGA:B97": "B97",
                         "GGA:BP86": "BP86",
                         "GGA:BLYP": "BLYP",
@@ -166,28 +211,46 @@ class InputFrame(Frame):
                         "RS-Double-Hybrid:wB2PLYP": "wB2PLYP",
                     },
                     "default": "GGA:BLYP",
+                    "switch": ("theory", "DFT"),
                 },
-                "dispersion correction": {
-                    "group": "method",
+                "dispersion": {
+                    "group": "level of theory",
+                    "text": "Dispersion correction",
                     "help": (
                         "Which atomic pairwise dispersion correction "
                         "should be used."
                     ),
                     "values": [None, "D2", "D3Zero", "D3BJ", "D4"],
                     "default": "D4",
+                    "switch": ("theory", "DFT"),
                 },
                 "relativity": {
-                    "group": "method",
+                    "group": "level of theory",
+                    "text": "Scalar relativistic approximation",
                     "help": (
-                        "Which scalar relativistic correction should be "
+                        "Which scalar relativistic approximation should be "
                         "used."
                     ),
                     "values": [None, "DKH", "ZORA"],
-                    "default": None,
+                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
+                "spin-orbit coupling": {
+                    "group": "level of theory",
+                    "help": (
+                        "Whether spin-orbit coupling should be taken into "
+                        "account."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                # TODO(schneiderfelipe): give support for cc basis set family
+                # (cc-pVTZ, etc.)
+                # TODO(schneiderfelipe): choose basis sets based on classes
+                # and properly show suitable selections. Also switch to basis
+                # sets consistent with relativistic approximations.
                 "basis set": {
-                    "group": "method",
-                    "help": "Which basis set should be used.",
+                    "group": "level of theory",
+                    "help": ("Which basis set should be used."),
                     "values": [
                         "def2-SV(P)",
                         "def2-SVP",
@@ -197,17 +260,30 @@ class InputFrame(Frame):
                         "def2-QZVP",
                         "def2-QZVPP",
                     ],
-                    "default": "def2-SV(P)",
+                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
-                "effective core potential": {
-                    "group": "method",
+                "ecp": {
+                    "group": "level of theory",
+                    "text": "Effective core potentials",
                     "help": (
                         "Whether effective core potentials should be used. "
                         "NOT IMPLEMENTED."
                     ),
                     "values": [None, "def2-ECP"],
                     "default": "def2-ECP",
+                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
+                # TODO(schneiderfelipe): support solvation models (GBSA for
+                # XTB, CPCM and SMD)
+                "numerical quality": {
+                    "help": ("Which numerical quality is desired."),
+                    "values": {"Normal": 3, "Good": 4, "Excellent": 5},
+                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                },
+                # TODO(schneiderfelipe): choose resolution of identity as a
+                # on/off tick and pre-select the best approximations in each
+                # case. Choose appropriate auxiliary basis sets either based on
+                # basis set class, or using AutoAux.
                 "resolution of identity": {
                     "help": (
                         "Whether a resolution of identity approximation "
@@ -220,114 +296,304 @@ class InputFrame(Frame):
                         "RIJCOSX": "RIJCOSX",
                     },
                     "default": "RI",
+                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
-                "numerical quality": {
-                    "help": "Which numerical quality is desired.",
-                    "values": {"Normal": 3, "Good": 4, "Excellent": 5},
+                # TODO(schneiderfelipe): support the geometric counterpoise
+                # method for basis set superposition error (BSSE).
+                # TODO(schneiderfelipe): support coordinate manipulation as
+                # lists and support fixing coordinates/degrees of freedom
+                # ("Geometry constraints").
+                "coordinates used": {
+                    "tab": "details",
+                    "group": "geometry convergence",
+                    "help": (
+                        "Which coordinates should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Delocalized"],
+                },
+                "calculate frequencies": {
+                    "tab": "details",
+                    "group": "geometry convergence",
+                    "help": (
+                        "Whether a frequencies calculation should be "
+                        "done after optimization."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "optimization method": {
+                    "tab": "details",
+                    "group": "geometry convergence",
+                    "help": (
+                        "Which optimization method should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Automatic"],
+                },
+                "maximum number of iterations": {
+                    "tab": "details",
+                    "group": "geometry convergence",
+                    "help": ("Maximum number of iterations."),
+                    "widget": Spinbox,
+                    "values": range(10, 1001, 10),
+                    "default": 100,
+                },
+                "maximum step": {
+                    "tab": "details",
+                    "group": "geometry convergence details",
+                    "help": ("Maximum step."),
+                    "widget": Spinbox,
+                    "values": np.arange(0.1, 1.0, 0.05),
+                    "default": 0.3,
+                },
+                "hessian update scheme": {
+                    "tab": "details",
+                    "group": "geometry convergence details",
+                    "help": (
+                        "Which Hessian update scheme should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Automatic"],
+                },
+                # TODO(schneiderfelipe): create a group for restarts in
+                # details that support reading a gbw
+                "initial hessian": {
+                    "tab": "details",
+                    "group": "geometry convergence details",
+                    "help": (
+                        "Which initial model Hessian should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": [
+                        "Diagonal",
+                        "Almloef",
+                        "Lindh",
+                        "Swart",
+                        "Schlegel",
+                        "Read",
+                    ],
+                    "default": "Almloef",
+                },
+                # TODO(schneiderfelipe): I don't see the need to set
+                # gradient, step and energy convergence criteria specifically
+                # if not necessary.
+                "convergence criteria": {
+                    "tab": "details",
+                    "group": "geometry convergence criteria",
+                    "help": (
+                        "Which convergence criteria should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Loose", "Normal", "Tight", "VeryTight"],
                     "default": "Normal",
+                },
+                "nuclear model": {
+                    "tab": "details",
+                    "group": "relativity",
+                    "help": (
+                        "Which nuclear model should be used in relativistic "
+                        "approximations."
+                    ),
+                    "values": ["Point charge"],
+                },
+                "Type of excitations": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": ("Which types of excitations to consider."),
+                    "values": ["Singlet and triplet"],
+                },
+                "method": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": ("Which excitation method to use."),
+                    "values": ["Davidson"],
+                },
+                "tda": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "text": "Tamm-Dancoff approximation",
+                    "help": (
+                        "Whether the Tamm-Dancoff approximation should "
+                        "be used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "velocity representation": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": (
+                        "Whether the velocity representation should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "ntos": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "text": "Natural transition orbitals",
+                    "help": (
+                        "Whether natural transition orbitals should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "rotatory strengths": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": (
+                        "Whether rotatory strengths should be calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "quadrupole intensities": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": (
+                        "Whether quadrupole intensities should be calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "number of excitations": {
+                    "tab": "properties",
+                    "group": "electronic excitations",
+                    "help": ("Number of excitations to consider."),
+                    "widget": Spinbox,
+                    "values": range(1, 101),
+                },
+                "shielding-h": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Shielding for all H atoms",
+                    "help": (
+                        "Whether shielding for hydrogens should be calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                },
+                "shielding-c": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Shielding for all C atoms",
+                    "help": (
+                        "Whether shielding for carbons should be calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "shielding-p": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Shielding for all P atoms",
+                    "help": (
+                        "Whether shielding for phosphorus should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "coupling-h": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Spin-spin coupling for all H atoms",
+                    "help": (
+                        "Whether spin-spin coupling for hydrogens should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "coupling-c": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Spin-spin coupling for all C atoms",
+                    "help": (
+                        "Whether spin-spin coupling for carbons should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "coupling-p": {
+                    "tab": "properties",
+                    "group": "nuclear magnetic resonance",
+                    "text": "Spin-spin coupling for all P atoms",
+                    "help": (
+                        "Whether spin-spin coupling for phosphorus should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                # TODO(schneiderfelipe): insert the NBO keyword
+                "nbo": {
+                    "tab": "properties",
+                    "text": "Perform NBO analysis",
+                    "help": (
+                        "Whether the natural bond orbital analysis should be "
+                        "performed."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                # TODO(schneiderfelipe): support output keywords such as
+                # LargePrint, PrintBasis and PrintMOs. An option "output level"
+                # is also interesting.
+                "Wavefunction file": {
+                    "tab": "output",
+                    "group": "analysis",
+                    "help": (
+                        "Whether a wavefunction file (WFN) should be created."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
                 },
             },
         )
 
-        self.text.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.questions.grid(row=0, column=1, columnspan=2, sticky="nsew")
-        self.clear_button.grid(row=1, column=1, sticky="nsew")
-        self.save_button.grid(row=1, column=2, sticky="nsew")
+        self.text.grid(
+            row=0, column=0, rowspan=2, sticky="nsew", padx=0, pady=0
+        )
+        self.questions.grid(
+            row=0, column=1, columnspan=2, sticky="nsew", padx=0, pady=0
+        )
+        self.clear_button.grid(
+            row=1, column=1, sticky="nsew", padx=0, pady=self.pady
+        )
+        self.save_button.grid(
+            row=1, column=2, sticky="nsew", padx=0, pady=self.pady
+        )
 
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1, minsize=3 * self.column_minsize)
+        self.columnconfigure(0, weight=1, minsize=3 * self.column_minsize)
 
-        self.clear_button.bind("<Button-1>", self.questions.clear)
+        self.clear_button.bind("<Button-1>", self.questions.init_widgets)
         self.save_button.bind("<Button-1>", self.save)
         for _, var in self.questions.variable.items():
-            var.trace("w", self.update)
+            var.trace("w", self.update_widgets)
 
-    def save(self, *args, **kwargs):
-        """Ask user for filename and save the current input."""
-        filepath = filedialog.asksaveasfilename(
-            defaultextension=".inp",
-            filetypes=[("Input Files", "*.in*"), ("All Files", "*.*")],
-        )
-        if not filepath:
-            return
-        with open(filepath, "w") as f:
-            text = self.text.get("1.0", "end")
-            f.write(text)
+        self.update_widgets()
 
-    def _get_values(self):
-        """Ensure widgets properly influence each other."""
-        v = self.questions.get_values()
-
-        if v["task"] == "Freq":
-            self.questions.enable("optimization")
-        else:
-            self.questions.disable("optimization")
-
-        if v["task"] == "NEB":
-            self.questions.enable("frequencies")
-        else:
-            self.questions.disable("frequencies")
-
-        if v["unrestricted"]:
-            self.questions.enable("multiplicity")
-            self.questions.enable("corresponding orbitals")
-        else:
-            self.questions.disable("multiplicity")
-            self.questions.disable("corresponding orbitals")
-
-        if v["model"] == "DFTB":
-            self.questions.enable("hamiltonian")
-        else:
-            self.questions.disable("hamiltonian")
-
-        if v["model"] == "DFT":
-            self.questions.enable("functional")
-            self.questions.enable("dispersion correction")
-        else:
-            self.questions.disable("functional")
-            self.questions.disable("dispersion correction")
-
-        if v["model"] == "CCSD":
-            self.questions.enable("triples correction")
-            self.questions.enable("dlpno")
-        else:
-            self.questions.disable("triples correction")
-            self.questions.disable("dlpno")
-
-        if v["model"] in {"MP2", "CCSD"}:
-            self.questions.enable("frozen core")
-        else:
-            self.questions.disable("frozen core")
-
-        if v["model"] in {"HF", "DFT", "MP2", "CCSD"}:
-            self.questions.enable("resolution of identity")
-            self.questions.enable("relativity")
-            self.questions.enable("basis set")
-            self.questions.enable("effective core potential")
-            self.questions.enable("numerical quality")
-        else:
-            self.questions.disable("resolution of identity")
-            self.questions.disable("relativity")
-            self.questions.disable("basis set")
-            self.questions.disable("effective core potential")
-            self.questions.disable("numerical quality")
-
-        return self.questions.get_values()
-
-    def update(self, *args, **kwargs):
+    def update_widgets(self, *args, **kwargs):
         """Update input content with currently selected options."""
-        v = self._get_values()
+        v = self.questions.get_values()
 
         keywords = []
         lines = []
 
         if v["unrestricted"]:
-            if v["model"] in {"DFTB", "DFT"}:
+            if v["theory"] in {"DFTB", "DFT"}:
                 keywords.append("UKS")
             else:
                 keywords.append("UHF")
         else:
-            if v["model"] in {"DFTB", "DFT"}:
+            # TODO(schneiderfelipe): maybe we should omit RKS/RHF
+            if v["theory"] in {"DFTB", "DFT"}:
                 keywords.append("RKS")
             else:
                 keywords.append("RHF")
@@ -335,21 +601,21 @@ class InputFrame(Frame):
         keywords.append(v["resolution of identity"])
         keywords.append(v["relativity"])
 
-        if v["model"] in {"HF", "MP2"}:
-            keywords.append(v["model"])
-        if v["model"] == "DFT":
+        if v["theory"] in {"HF", "MP2"}:
+            keywords.append(v["theory"])
+        if v["theory"] == "DFT":
             keywords.append(v["functional"])
-        elif v["model"] == "DFTB":
+        elif v["theory"] == "DFTB":
             keywords.append(v["hamiltonian"])
-        elif v["model"] == "CCSD":
-            kw = v["model"]
+        elif v["theory"] == "CCSD":
+            kw = v["theory"]
             if v["triples correction"]:
                 kw = kw + "(T)"
             if v["dlpno"]:
                 kw = "DLPNO-" + kw
             keywords.append(kw)
 
-        keywords.append(v["dispersion correction"])
+        keywords.append(v["dispersion"])
 
         keywords.append(v["basis set"])
         if v["resolution of identity"] in {"RI", "RIJCOSX"}:
@@ -357,29 +623,31 @@ class InputFrame(Frame):
                 keywords.append("SARC/J")
             else:
                 keywords.append("def2/J")
+
+        # TODO(schneiderfelipe): this should probably go to the end of the
+        # keywords
         if v["resolution of identity"] == "RIJCOSX":
             keywords.append(f"{v['basis set']}/C")
         if v["resolution of identity"] == "RI-JK":
             keywords.append("def2/JK")
 
-        if v["model"] in {"MP2", "CCSD"}:
+        if v["theory"] in {"MP2", "CCSD"}:
             keywords.append(v["frozen core"])
 
-        if v["corresponding orbitals"]:
+        if v["uco"]:
             keywords.append("UCO")
 
-        if v["task"] == "Freq" and v["optimization"]:
-            keywords.append("Opt")
+        if v["numerical frequencies"] and "Freq" in v["task"]:
+            v["task"] = v["task"].replace("Freq", "NumFreq")
         keywords.append(v["task"])
-        if v["task"] == "NEB" and v["frequencies"]:
-            keywords.append("Freq")
 
-        if v["numerical quality"] > 3:
-            if v["task"] == "Opt" or v["optimization"]:
-                keywords.append("TightOpt")
-            keywords.append("TightSCF")
-        keywords.append(f"Grid{v['numerical quality']}")
-        keywords.append(f"FinalGrid{v['numerical quality'] + 1}")
+        if v["numerical quality"]:
+            if v["numerical quality"] > 3:
+                if "Opt" in v["task"]:
+                    keywords.append("TightOpt")
+                keywords.append("TightSCF")
+            keywords.append(f"Grid{v['numerical quality']}")
+            keywords.append(f"FinalGrid{v['numerical quality'] + 1}")
 
         if v["short description"]:
             lines.append(f"# {v['short description']}")
@@ -401,6 +669,6 @@ if __name__ == "__main__":
         style.theme_use("clam")
 
     main_window.title(__doc__.split("\n", 1)[0].strip().strip("."))
-    input_frame = InputFrame(main_window)
+    input_frame = InputGUI(main_window)
     input_frame.pack(fill="both", expand=True)
     main_window.mainloop()
