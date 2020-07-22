@@ -2,168 +2,17 @@
 
 """Simple ORCA graphical user interface."""
 
-from tkinter import BooleanVar
-from tkinter import DoubleVar
-from tkinter import IntVar
-from tkinter import StringVar
-from tkinter import Tk
-
 from tkinter import filedialog
 from tkinter import Spinbox
 from tkinter import Text
+from tkinter import Tk
 from tkinter.ttk import Button
 from tkinter.ttk import Checkbutton
-from tkinter.ttk import Combobox
-
 from tkinter.ttk import Entry
 from tkinter.ttk import Frame
-from tkinter.ttk import Label
 from tkinter.ttk import Style
 
-
-class Questionnaire(Frame):
-    """Interface for simple questionnaires."""
-
-    def __init__(self, master=None, fields=None):
-        """Construct object."""
-        super().__init__(master)
-        self.master = master
-        self.fields = fields
-        self.create_widgets()
-        self.clear()
-
-    def get_values(self):
-        """Return a dictionary of all variable values."""
-        values = {}
-        for name in self.variable:
-            if not self.fields[name]["visible"]:
-                values[name] = None
-                continue
-
-            values[name] = self.variable[name].get()
-            if values[name] == "None":
-                values[name] = None
-
-            if "values" in self.fields[name]:
-                translator = self.fields[name]["values"]
-                if isinstance(translator, dict):
-                    values[name] = translator[values[name]]
-
-            if values[name] == "None":
-                values[name] = None
-        return values
-
-    def clear(self, *args, **kwargs):
-        """Clear all fields to default values."""
-        if self.fields is None:
-            return
-
-        for name, desc in self.fields.items():
-            self.variable[name].set(desc["default"])
-
-    def enable(self, name):
-        """Show a widget by name."""
-        if self.fields[name]["visible"]:
-            return
-        self.toggle(name)
-
-    def disable(self, name):
-        """Hide a widget by name."""
-        if not self.fields[name]["visible"]:
-            return
-        self.toggle(name)
-
-    def toggle(self, name):
-        """Hide or show a widget by name."""
-        if not self.fields[name]["visible"]:
-            self.widget[name].grid()
-            if name in self.label:
-                self.label[name].grid()
-        else:
-            self.widget[name].grid_remove()
-            if name in self.label:
-                self.label[name].grid_remove()
-        self.fields[name]["visible"] = not self.fields[name]["visible"]
-
-    def create_widgets(self):
-        """Populate object and its widgets."""
-        self.variable = {}
-        self.label = {}
-        self.widget = {}
-
-        if self.fields is None:
-            return
-
-        for i, (name, desc) in enumerate(self.fields.items()):
-            if "values" in desc:
-                values = list(desc["values"])
-
-            if "type" not in desc:
-                # if no type is given, first guess it based on a default
-                # value, or infer from the first valid value.
-                if "default" in desc and desc["default"] is not None:
-                    desc["type"] = type(desc["default"])
-                elif "values" in desc:
-                    desc["type"] = type(
-                        [v for v in values if v is not None][0]
-                    )
-                else:
-                    raise ValueError(
-                        f"could not infer type, please specify: {desc}"
-                    )
-
-            if "default" not in desc:
-                # if no default is given, use the first valid value, or infer
-                # from type.
-                if "values" in desc:
-                    desc["default"] = [v for v in values if v is not None][0]
-                elif "type" in desc:
-                    desc["default"] = desc["type"]()
-                else:
-                    raise ValueError(
-                        f"could not infer default, please specify: {desc}"
-                    )
-
-            if desc["type"] is int:
-                self.variable[name] = IntVar(self)
-            elif desc["type"] is bool:
-                self.variable[name] = BooleanVar(self)
-            elif desc["type"] is str:
-                self.variable[name] = StringVar(self)
-            elif desc["type"] is float:
-                self.variable[name] = DoubleVar(self)
-            else:
-                raise ValueError(f"unknown type '{desc['type']}'")
-
-            if "text" in desc:
-                text = desc["text"]
-            else:
-                text = name.capitalize()
-
-            if "widget" not in desc:
-                # TODO(schneiderfelipe): should this be default?
-                desc["widget"] = Combobox
-
-            if desc["widget"] is Checkbutton:
-                self.widget[name] = desc["widget"](
-                    self, variable=self.variable[name], text=text
-                )
-            elif "values" in desc:
-                self.widget[name] = desc["widget"](
-                    self, textvariable=self.variable[name], values=values
-                )
-            else:
-                self.widget[name] = desc["widget"](
-                    self, textvariable=self.variable[name]
-                )
-            self.widget[name].grid(row=i, column=1, sticky="ew")
-
-            if desc["widget"] is not Checkbutton:
-                self.label[name] = Label(self, text=text + ":")
-                self.label[name].grid(row=i, column=0, sticky="ew")
-
-            if "visible" not in desc:
-                desc["visible"] = True
+from questionnaire import Questionnaire
 
 
 class InputFrame(Frame):
@@ -184,53 +33,115 @@ class InputFrame(Frame):
         self.questions = Questionnaire(
             self,
             {
-                "short description": {"widget": Entry, "type": str},
+                "short description": {
+                    "help": "A one-line description for your calculation.",
+                    "widget": Entry,
+                    "type": str,
+                },
                 "task": {
+                    "group": "basic",
+                    "help": "The main task of your calculation.",
                     "values": {
                         "Single point": "SP",
                         "Geometry optimization": "Opt",
                         "Frequencies": "Freq",
                         "Nudged elastic band": "NEB",
-                    }
+                    },
                 },
-                "optimization": {"widget": Checkbutton, "default": True},
-                "frequencies": {"widget": Checkbutton, "default": False},
+                "optimization": {
+                    "group": "basic",
+                    "help": (
+                        "Whether to do a geometry optimization pior to "
+                        "the frequencies calculation."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                },
+                "frequencies": {
+                    "group": "basic",
+                    "help": (
+                        "Whether to do a frequencies calculation after "
+                        "the nudged elastic band calculation."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
                 "charge": {
+                    "group": "basic",
+                    "help": "Net charge of you calculation.",
                     "widget": Spinbox,
                     "text": "Total charge",
-                    "values": range(-10, 11),
+                    "values": range(-100, 101),
                     "default": 0,
                 },
                 "multiplicity": {
+                    "group": "basic",
+                    "help": "Spin multiplicity of you calculation.",
                     "widget": Spinbox,
                     "text": "Spin multiplicity",
-                    "values": range(1, 11),
+                    "values": range(1, 101),
                 },
-                "unrestricted": {"widget": Checkbutton, "default": False},
-                "corresponding orbitals": {
+                "unrestricted": {
+                    "group": "basic",
+                    "help": (
+                        "Whether an unrestricted wavefunction should be "
+                        "used."
+                    ),
                     "widget": Checkbutton,
-                    "default": True,
+                    "default": False,
+                },
+                "corresponding orbitals": {
+                    "help": (
+                        "Whether unrestricted corresponding orbitals "
+                        "should be calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
                 },
                 "model": {
+                    "group": "method",
+                    "help": "Class of calculation.",
                     "values": ["HF", "DFTB", "DFT", "MP2", "CCSD"],
                     "default": "DFT",
                 },
-                "triples correction": {"widget": Checkbutton, "default": True},
-                "dlpno": {
-                    "text": "DLPNO",
-                    "widget": Checkbutton,
-                    "default": True,
-                },
                 "frozen core": {
+                    "group": "method",
+                    "help": (
+                        "Whether the frozen core approximation should be "
+                        "used."
+                    ),
                     "widget": Checkbutton,
                     "values": {True: "FrozenCore", False: "NoFrozenCore"},
                     "default": True,
                 },
+                "dlpno": {
+                    "group": "method",
+                    "help": (
+                        "Whether the domain-based local pair natural "
+                        "orbital approximation should be used."
+                    ),
+                    "text": "DLPNO",
+                    "widget": Checkbutton,
+                    "default": True,
+                },
+                "triples correction": {
+                    "group": "method",
+                    "help": (
+                        "Whether perturbative triples correction should "
+                        "be calculated used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                },
                 "hamiltonian": {
+                    "group": "method",
+                    "help": "Which model Hamiltonian should be used.",
                     "values": {"GFN1-xTB": "XTB1", "GFN2-xTB": "XTB2"},
                     "default": "GFN2-xTB",
                 },
                 "functional": {
+                    "group": "method",
+                    "help": "Which density functional should be used.",
                     "text": "XC functional",
                     "values": {
                         "LDA": "LDA",
@@ -257,23 +168,26 @@ class InputFrame(Frame):
                     "default": "GGA:BLYP",
                 },
                 "dispersion correction": {
+                    "group": "method",
+                    "help": (
+                        "Which atomic pairwise dispersion correction "
+                        "should be used."
+                    ),
                     "values": [None, "D2", "D3Zero", "D3BJ", "D4"],
                     "default": "D4",
                 },
-                "resolution of identity": {
-                    "values": {
-                        None: "NoRI",
-                        "RI": "RI",
-                        "RI-JK": "RI-JK",
-                        "RIJCOSX": "RIJCOSX",
-                    },
-                    "default": "RI",
-                },
                 "relativity": {
+                    "group": "method",
+                    "help": (
+                        "Which scalar relativistic correction should be "
+                        "used."
+                    ),
                     "values": [None, "DKH", "ZORA"],
                     "default": None,
                 },
                 "basis set": {
+                    "group": "method",
+                    "help": "Which basis set should be used.",
                     "values": [
                         "def2-SV(P)",
                         "def2-SVP",
@@ -283,19 +197,34 @@ class InputFrame(Frame):
                         "def2-QZVP",
                         "def2-QZVPP",
                     ],
-                    "default": "def2-TZVP",
+                    "default": "def2-SV(P)",
                 },
                 "effective core potential": {
+                    "group": "method",
+                    "help": (
+                        "Whether effective core potentials should be used. "
+                        "NOT IMPLEMENTED."
+                    ),
                     "values": [None, "def2-ECP"],
                     "default": "def2-ECP",
                 },
-                "numerical quality": {
+                "resolution of identity": {
+                    "help": (
+                        "Whether a resolution of identity approximation "
+                        "should be used."
+                    ),
                     "values": {
-                        "Normal": "Grid3 FinalGrid4",
-                        "Good": "TightSCF Grid4 FinalGrid5",
-                        "Excellent": "TightSCF Grid5 FinalGrid6",
+                        None: "NoRI",
+                        "RI": "RI",
+                        "RI-JK": "RI-JK",
+                        "RIJCOSX": "RIJCOSX",
                     },
-                    "default": "Good",
+                    "default": "RI",
+                },
+                "numerical quality": {
+                    "help": "Which numerical quality is desired.",
+                    "values": {"Normal": 3, "Good": 4, "Excellent": 5},
+                    "default": "Normal",
                 },
             },
         )
@@ -305,10 +234,25 @@ class InputFrame(Frame):
         self.clear_button.grid(row=1, column=1, sticky="nsew")
         self.save_button.grid(row=1, column=2, sticky="nsew")
 
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+
         self.clear_button.bind("<Button-1>", self.questions.clear)
         self.save_button.bind("<Button-1>", self.save)
         for _, var in self.questions.variable.items():
             var.trace("w", self.update)
+
+    def save(self, *args, **kwargs):
+        """Ask user for filename and save the current input."""
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".inp",
+            filetypes=[("Input Files", "*.in*"), ("All Files", "*.*")],
+        )
+        if not filepath:
+            return
+        with open(filepath, "w") as f:
+            text = self.text.get("1.0", "end")
+            f.write(text)
 
     def _get_values(self):
         """Ensure widgets properly influence each other."""
@@ -391,6 +335,8 @@ class InputFrame(Frame):
         keywords.append(v["resolution of identity"])
         keywords.append(v["relativity"])
 
+        if v["model"] in {"HF", "MP2"}:
+            keywords.append(v["model"])
         if v["model"] == "DFT":
             keywords.append(v["functional"])
         elif v["model"] == "DFTB":
@@ -428,11 +374,12 @@ class InputFrame(Frame):
         if v["task"] == "NEB" and v["frequencies"]:
             keywords.append("Freq")
 
-        if v["numerical quality"] != "Grid3 FinalGrid4" and (
-            v["task"] == "Opt" or v["optimization"]
-        ):
-            keywords.append("TightOpt")
-        keywords.append(v["numerical quality"])
+        if v["numerical quality"] > 3:
+            if v["task"] == "Opt" or v["optimization"]:
+                keywords.append("TightOpt")
+            keywords.append("TightSCF")
+        keywords.append(f"Grid{v['numerical quality']}")
+        keywords.append(f"FinalGrid{v['numerical quality'] + 1}")
 
         if v["short description"]:
             lines.append(f"# {v['short description']}")
@@ -445,18 +392,6 @@ class InputFrame(Frame):
         self.text.delete("1.0", "end")
         self.text.insert("1.0", "\n".join(lines))
 
-    def save(self, *args, **kwargs):
-        """Ask user for filename and save the current input."""
-        filepath = filedialog.asksaveasfilename(
-            defaultextension=".inp",
-            filetypes=[("Input Files", "*.in*"), ("All Files", "*.*")],
-        )
-        if not filepath:
-            return
-        with open(filepath, "w") as f:
-            text = self.text.get("1.0", "end")
-            f.write(text)
-
 
 if __name__ == "__main__":
     main_window = Tk()
@@ -467,5 +402,5 @@ if __name__ == "__main__":
 
     main_window.title(__doc__.split("\n", 1)[0].strip().strip("."))
     input_frame = InputFrame(main_window)
-    input_frame.pack()
+    input_frame.pack(fill="both", expand=True)
     main_window.mainloop()
