@@ -6,6 +6,7 @@ Orcinus orca is a simple graphical user interface (GUI) for the ORCA quantum
 chemistry package.
 """
 
+from collections.abc import MutableMapping
 from tkinter import filedialog
 from tkinter import Spinbox
 from tkinter import Text
@@ -21,6 +22,63 @@ import numpy as np
 from questionnaire import Questionnaire
 
 
+class ORCAInput(MutableMapping):
+    """A simple abstraction of an ORCA input file."""
+
+    def __init__(self, data=None):
+        """Construct object."""
+        self._mapping = {}
+        if data is not None:
+            self.update(data)
+
+    def __repr__(self):
+        """Return string representation of self."""
+        return f"{type(self).__name__}({self._mapping})"
+
+    def generate(self):
+        """Generate input content."""
+        lines = []
+        for item in self["#"]:
+            lines.append(f"# {item}")
+        lines.append(
+            f"! {' '.join([str(v) for v in self['!'] if v is not None])}"
+        )
+        lines.append(
+            f"\n* {' '.join([str(v) for v in self['*'] if v is not None])}"
+        )
+        for key, value in self.items():
+            if not isinstance(value, list) or key in {"#", "!", "*"}:
+                continue
+            lines.append(f"\n%{key}")
+            for item in value:
+                lines.append(f" {item}")
+            lines.append("end")
+
+        return "\n".join(lines)
+
+    def __getitem__(self, key):
+        """Get item at key."""
+        if key not in self._mapping:
+            self._mapping[key] = []
+        return self._mapping[key]
+
+    def __setitem__(self, key, value):
+        """Set item at key to value."""
+        self._mapping[key] = value
+
+    def __delitem__(self, key):
+        """Delete item at key."""
+        del self._mapping[key]
+
+    def __iter__(self):
+        """Iterate keys."""
+        return iter(self._mapping)
+
+    def __len__(self):
+        """Return number of keys."""
+        return len(self._mapping)
+
+
 class InputGUI(Frame):
     """Interface for input generation."""
 
@@ -33,7 +91,7 @@ class InputGUI(Frame):
         self.master = master
         self.create_widgets()
 
-    def save(self):
+    def save(self, *args, **kwargs):
         """Ask user for filename and save the current input."""
         filepath = filedialog.asksaveasfilename(
             defaultextension=".inp",
@@ -45,6 +103,14 @@ class InputGUI(Frame):
             text = self.text.get("1.0", "end")
             f.write(text)
 
+    def clear(self, *args, **kwargs):
+        """Clear all fields to default values."""
+        self.questions.init_widgets(*args, ignore_state=True, **kwargs)
+
+    def store_widgets(self, *args, **kwargs):
+        """Store all fields to disk."""
+        self.questions.store_widgets(*args, **kwargs)
+
     def create_widgets(self):
         """Populate object and its widgets."""
         self.text = Text(self)
@@ -52,6 +118,7 @@ class InputGUI(Frame):
         self.save_button = Button(self, text="Save")
         self.questions = Questionnaire(
             self,
+            state_filename="questions.pickle",
             padx=self.padx,
             pady=self.pady,
             column_minsize=self.column_minsize,
@@ -71,18 +138,18 @@ class InputGUI(Frame):
                     "group": "basic information",
                     "help": ("The main task of your calculation."),
                     "values": [
-                        "SP",
+                        "Energy",
                         "Opt",
                         "Freq",
                         "Opt Freq",
-                        "Scan",
+                        # "Scan",
                         "OptTS",
                         "OptTS Freq",
                         "IRC",
                         "NEB",
                         "NEB Freq",
-                        "MD",
-                        "NoIter",
+                        # "MD",
+                        # "NoIter",
                     ],
                 },
                 # TODO(schneiderfelipe): automatically select numerical
@@ -94,7 +161,10 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": False,
-                    "switch": ("task", lambda v: "Freq" in v),
+                    "switch": [
+                        ("task", lambda v: "Freq" in v),
+                        ("initial hessian", "Calculate"),
+                    ],
                 },
                 "charge": {
                     "group": "basic information",
@@ -104,7 +174,7 @@ class InputGUI(Frame):
                     "values": range(-100, 101),
                     "default": 0,
                 },
-                "multiplicity": {
+                "spin": {
                     "group": "basic information",
                     "text": "Spin multiplicity",
                     "help": ("Spin multiplicity of you calculation."),
@@ -132,6 +202,8 @@ class InputGUI(Frame):
                     "values": {False: None, True: "UCO"},
                     "switch": "unrestricted",
                 },
+                # TODO(schneiderfelipe): give some support for broken
+                # symmetry (BS-DFT).
                 # TODO(schneiderfelipe): this should go to the broadest
                 # possible category, above even task.
                 "theory": {  # TODO(schneiderfelipe): use a better name
@@ -140,7 +212,11 @@ class InputGUI(Frame):
                     "values": ["MM", "HF", "DFTB", "DFT", "MP2", "CCSD"],
                     "default": "DFT",
                 },
-                # TODO(schneiderfelipe): properly select it when e.g. MP2 Freq
+                # TODO(schneiderfelipe): the frozen core approximation can be
+                # tuned with things such as energy window or electron
+                # counting, but the defaults should be very reliable.
+                # TODO(schneiderfelipe): properly select NoFrozenCore it when
+                # e.g. MP2 Freq.
                 "frozen core": {
                     "group": "level of theory",
                     "help": (
@@ -200,6 +276,7 @@ class InputGUI(Frame):
                         "Meta-GGA:M06L": "M06L",
                         "Meta-GGA:TPSS": "TPSS",
                         "Hybrid:B3LYP": "B3LYP",
+                        # "Hybrid:B3LYP/G": "B3LYP/G",  # same as in Gaussian
                         "Hybrid:B3PW91": "B3PW91",
                         "Hybrid:PWP1": "PWP1",
                         "Hybrid:PBE0": "PBE0",
@@ -234,6 +311,8 @@ class InputGUI(Frame):
                     "values": [None, "DKH", "ZORA"],
                     "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
+                # TODO(schneiderfelipe): the 1-center approximation option is
+                # relevant to calculations using ZORA.
                 "spin-orbit coupling": {
                     "group": "level of theory",
                     "help": (
@@ -243,24 +322,48 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
+                # TODO(schneiderfelipe): create a details group for SCF
+                # convergence things such as solvers (e.g. DIIS, KDIIS,
+                # MORead), initial guesses (e.g, PModel, Hueckel), etc.. It
+                # is also nice to allow a stability analysis of the SCF
+                # wavefunction. In the future I also want to implement
+                # options for rotating orbitals.
+                # TODO(schneiderfelipe): give some support for diffuse
+                # functions, specially minimally augmented. For that, some
+                # nice options for avoiding linear dependency problems are
+                # required in a special group for SCF convergence.
                 # TODO(schneiderfelipe): give support for cc basis set family
-                # (cc-pVTZ, etc.)
-                # TODO(schneiderfelipe): choose basis sets based on classes
-                # and properly show suitable selections. Also switch to basis
-                # sets consistent with relativistic approximations.
-                "basis set": {
+                # (cc-pVTZ, etc.).
+                # TODO(schneiderfelipe): give support for Pople-style basis
+                # sets (6-31G, 6-311G, etc.). Other families beside cc and
+                # def2 is ano (they also have aug-cc, ma-def2 and
+                # saug-ano/aug-ano).
+                # TODO(schneiderfelipe): extrapolation techniques are
+                # interesting for single point calculations with DLPNO-CC
+                # methods.
+                # TODO(schneiderfelipe): switch to basis sets consistent with
+                # relativistic approximations.
+                "basis:family": {
                     "group": "level of theory",
-                    "help": ("Which basis set should be used."),
-                    "values": [
-                        "def2-SV(P)",
-                        "def2-SVP",
-                        "def2-TZVP",
-                        "def2-TZVP(-f)",
-                        "def2-TZVPP",
-                        "def2-QZVP",
-                        "def2-QZVPP",
-                    ],
+                    "text": "Basis set family",
+                    "help": ("Which basis set family should be employed."),
+                    "values": ["def2"],
                     "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                },
+                "basis:def2": {
+                    "group": "level of theory",
+                    "text": "Basis set quality",
+                    "help": ("Which basis set should be used."),
+                    "values": {
+                        "DZ(P)": "def2-SV(P)",
+                        "DZP": "def2-SVP",
+                        "TZP": "def2-TZVP",
+                        "TZP(-f)": "def2-TZVP(-f)",
+                        "TZPP": "def2-TZVPP",
+                        "QZP": "def2-QZVP",
+                        "QZPP": "def2-QZVPP",
+                    },
+                    "default": "TZP",
                 },
                 "ecp": {
                     "group": "level of theory",
@@ -269,40 +372,134 @@ class InputGUI(Frame):
                         "Whether effective core potentials should be used. "
                         "NOT IMPLEMENTED."
                     ),
+                    # TODO(schneiderfelipe): this requires a good
+                    # implementation, which I think can improve costly
+                    # calculations with heavy atoms. I also want to ensure
+                    # nice compatibility between basis sets and ECPs.
+                    # TODO(schneiderfelipe): this is a case where "Auto" makes
+                    # sense, since leaving it unspecified might trigger the
+                    # default set of ECPs as of ORCA 4+. Whenever this is the
+                    # case, say it in the help.
                     "values": [None, "def2-ECP"],
                     "default": "def2-ECP",
                     "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
                 # TODO(schneiderfelipe): support solvation models (GBSA for
-                # XTB, CPCM and SMD)
-                "numerical quality": {
-                    "help": ("Which numerical quality is desired."),
-                    "values": {"Normal": 3, "Good": 4, "Excellent": 5},
+                # XTB, CPCM and SMD). Cavity construction in continuum
+                # solvation is also something that oftentimes produce
+                # imaginary frequencies. As such, options on that are also
+                # necessary.
+                # TODO(schneiderfelipe): continuum solvation models are very
+                # important, in particular also parameters for cavity
+                # definition such as GEPOL, SES/SAS and atomic radii. But
+                # don't be too boring.
+                "solvent": {
+                    "help": ("Which solvent should be considered."),
+                    "values": [
+                        "Acetone",  # also available in CPCM
+                        "Acetonitrile",  # also available in CPCM
+                        "Benzene",  # unavailable in CPCM
+                        "Dichloromethane",  # also available in CPCM
+                        "Chloroform",  # also available in CPCM
+                        "Carbon disulfide",  # unavailable in CPCM
+                        "Dimethylformamide",  # unavailable in GFN1-xTB, also available in CPCM
+                        "Dimethyl sulfoxide",  # also available in CPCM
+                        "Ether",  # unavailable in CPCM
+                        "Water",  # also available in CPCM
+                        "Methanol",  # also available in CPCM
+                        "n-Hexane",  # unavailable in GFN1-xTB, also available in CPCM
+                        "Tetrahydrofuran",  # also available in CPCM
+                        "Toluene",  # also available in CPCM
+                    ],
+                },
+                # TODO(schneiderfelipe): set analogous standards for COSX
+                # grids as well for when RIJCOSX is used.
+                "numerical:quality": {
+                    "help": (
+                        "Which numerical quality is desired. Good is "
+                        "defined as enough to avoid imaginary "
+                        "frequencies due to numerical noise, but you "
+                        "might need more than that."
+                    ),
+                    "values": {
+                        "Auto": None,
+                        "Normal": 3,
+                        "Good": 4,
+                        "Very Good": 5,
+                        "Excellent": 6,
+                    },
+                    "default": "Good",
                     "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
                 # TODO(schneiderfelipe): choose resolution of identity as a
                 # on/off tick and pre-select the best approximations in each
                 # case. Choose appropriate auxiliary basis sets either based on
                 # basis set class, or using AutoAux.
-                "resolution of identity": {
+                # TODO(schneiderfelipe): support specifying number of
+                # processors. This should be in the acceleration section,
+                # together with resolution of identity. Such section must
+                # contain only things that make calculations fast without
+                # changing accuracy.
+                # TODO(schneiderfelipe): support setting maximum memory
+                # requirements. I prefer to set it to total memory and
+                # calculate the value per core, as this is the relevant
+                # information (i.e., how much the computer has). This is
+                # eligible for the acceleration section because it is related
+                # to the number of processors and because having a good about
+                # of memory avoids too many batches in many parts of the
+                # code, thus accelerating calculations. This requires a
+                # one-liner starting with %, so we need to teach ORCAInput to
+                # understand accept
+                #
+                #     inp["%maxcore"].append(3000)
+                #
+                # as
+                #
+                #     "%maxcore 3000"
+                #
+                # which is new behavior.
+                "ri": {
+                    "group": "acceleration",
+                    "text": "Resolution of identity",
                     "help": (
                         "Whether a resolution of identity approximation "
                         "should be used."
                     ),
+                    # TODO(schneiderfelipe): this is a case where it makes
+                    # sense to add both None (explicitly no) and "Auto"
+                    # (standard ORCA policy), as they mean different things.
+                    # Say it in the help.
                     "values": {
+                        "Auto": "Auto",
                         None: "NoRI",
                         "RI": "RI",
                         "RI-JK": "RI-JK",
                         "RIJCOSX": "RIJCOSX",
                     },
-                    "default": "RI",
                     "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
                 },
+                "scf:maxiter": {
+                    "tab": "details",
+                    "group": "self consistent field",
+                    "text": "Maximum number of iterations",
+                    "help": (
+                        "Maximum number of self consistent field "
+                        "iterations."
+                    ),
+                    "widget": Spinbox,
+                    "values": ["Auto"] + list(range(100, 1001, 50)),
+                },
                 # TODO(schneiderfelipe): support the geometric counterpoise
-                # method for basis set superposition error (BSSE).
+                # method for basis set superposition error (BSSE). This should
+                # appear disabled for unavailable cases such as
+                # nonparameterized basis set, etc. Tell what is available in
+                # the help.
                 # TODO(schneiderfelipe): support coordinate manipulation as
                 # lists and support fixing coordinates/degrees of freedom
                 # ("Geometry constraints").
+                # TODO(schneiderfelipe): the following should support things
+                # like "COpt" in place of "Opt" for fixing bad internal
+                # coordinates (sometimes molecules explode due to that).
                 "coordinates used": {
                     "tab": "details",
                     "group": "geometry convergence",
@@ -329,15 +526,18 @@ class InputGUI(Frame):
                         "Which optimization method should be used for "
                         "optimization convergence."
                     ),
-                    "values": ["Automatic"],
+                    "values": ["Auto"],
                 },
-                "maximum number of iterations": {
+                "geom:maxiter": {
                     "tab": "details",
                     "group": "geometry convergence",
-                    "help": ("Maximum number of iterations."),
+                    "text": "Maximum number of iterations",
+                    "help": (
+                        "Maximum number of geometry optimization "
+                        "iterations."
+                    ),
                     "widget": Spinbox,
-                    "values": range(10, 1001, 10),
-                    "default": 100,
+                    "values": ["Auto"] + list(range(50, 1001, 25)),
                 },
                 "maximum step": {
                     "tab": "details",
@@ -354,7 +554,7 @@ class InputGUI(Frame):
                         "Which Hessian update scheme should be used for "
                         "optimization convergence."
                     ),
-                    "values": ["Automatic"],
+                    "values": ["Auto", "BFGS", "Bofill", "Powell"],
                 },
                 # TODO(schneiderfelipe): create a group for restarts in
                 # details that support reading a gbw
@@ -363,17 +563,22 @@ class InputGUI(Frame):
                     "group": "geometry convergence details",
                     "help": (
                         "Which initial model Hessian should be used for "
-                        "optimization convergence."
+                        "optimization convergence. 'Auto' probably means "
+                        "'Almloef'"
                     ),
-                    "values": [
-                        "Diagonal",
-                        "Almloef",
-                        "Lindh",
-                        "Swart",
-                        "Schlegel",
-                        "Read",
-                    ],
-                    "default": "Almloef",
+                    # TODO(schneiderfelipe): sometimes an order similar to the
+                    # one below is the best thing possible, with the best or
+                    # most common first:
+                    "values": {
+                        "Auto": None,
+                        "Calculate": "calc_hess true",
+                        "Read": "inhess read",
+                        "Swart": "inhess swart",
+                        "Lindh": "inhess lindh",
+                        "Almloef": "inhess almloef",
+                        "Schlegel": "inhess schlegel",
+                        "Diagonal": "inhess unit",
+                    },
                 },
                 # TODO(schneiderfelipe): I don't see the need to set
                 # gradient, step and energy convergence criteria specifically
@@ -397,6 +602,8 @@ class InputGUI(Frame):
                     ),
                     "values": ["Point charge"],
                 },
+                # TODO(schneiderfelipe): TD-DFT for UV-vis is kind of a
+                # priority at the moment.
                 "Type of excitations": {
                     "tab": "properties",
                     "group": "electronic excitations",
@@ -409,6 +616,9 @@ class InputGUI(Frame):
                     "help": ("Which excitation method to use."),
                     "values": ["Davidson"],
                 },
+                # TODO(schneiderfelipe): Tamm-Dancoff approximation is an
+                # important approximation and deserves a nice spot in the
+                # interface.
                 "tda": {
                     "tab": "properties",
                     "group": "electronic excitations",
@@ -459,6 +669,11 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
+                # TODO(schneiderfelipe): this should give something like
+                #
+                #     %tddft
+                #      nroots 4
+                #     end
                 "number of excitations": {
                     "tab": "properties",
                     "group": "electronic excitations",
@@ -572,7 +787,7 @@ class InputGUI(Frame):
         self.rowconfigure(0, weight=1, minsize=3 * self.column_minsize)
         self.columnconfigure(0, weight=1, minsize=3 * self.column_minsize)
 
-        self.clear_button.bind("<Button-1>", self.questions.init_widgets)
+        self.clear_button.bind("<Button-1>", self.clear)
         self.save_button.bind("<Button-1>", self.save)
         for _, var in self.questions.variable.items():
             var.trace("w", self.update_widgets)
@@ -582,87 +797,103 @@ class InputGUI(Frame):
     def update_widgets(self, *args, **kwargs):
         """Update input content with currently selected options."""
         v = self.questions.get_values()
+        print(v)  # TODO(schneiderfelipe): do proper logging, this is debug!
+        inp = ORCAInput()
 
-        keywords = []
-        lines = []
+        if not v["spin"]:
+            v["spin"] = 1
+
+        inp["*"] = ["xyzfile", v["charge"], v["spin"], "init.xyz"]
 
         if v["unrestricted"]:
             if v["theory"] in {"DFTB", "DFT"}:
-                keywords.append("UKS")
+                inp["!"].append("UKS")
             else:
-                keywords.append("UHF")
-        else:
-            # TODO(schneiderfelipe): maybe we should omit RKS/RHF
-            if v["theory"] in {"DFTB", "DFT"}:
-                keywords.append("RKS")
-            else:
-                keywords.append("RHF")
+                inp["!"].append("UHF")
+        # else:
+        #     if v["theory"] in {"DFTB", "DFT"}:
+        #         inp["!"].append("RKS")
+        #     else:
+        #         inp["!"].append("RHF")
 
-        keywords.append(v["resolution of identity"])
-        keywords.append(v["relativity"])
+        if v["ri"] and v["ri"] != "Auto":
+            inp["!"].append(v["ri"])
+        inp["!"].append(v["relativity"])
 
         if v["theory"] in {"HF", "MP2"}:
-            keywords.append(v["theory"])
+            inp["!"].append(v["theory"])
         if v["theory"] == "DFT":
-            keywords.append(v["functional"])
+            inp["!"].append(v["functional"])
         elif v["theory"] == "DFTB":
-            keywords.append(v["hamiltonian"])
+            inp["!"].append(v["hamiltonian"])
         elif v["theory"] == "CCSD":
             kw = v["theory"]
             if v["triples correction"]:
                 kw = kw + "(T)"
             if v["dlpno"]:
                 kw = "DLPNO-" + kw
-            keywords.append(kw)
+            inp["!"].append(kw)
 
-        keywords.append(v["dispersion"])
+        inp["!"].append(v["dispersion"])
 
-        keywords.append(v["basis set"])
-        if v["resolution of identity"] in {"RI", "RIJCOSX"}:
+        inp["!"].append(v[f"basis:{v['basis:family']}"])
+        if v["ri"] in {"RI", "RIJCOSX"}:
             if v["relativity"]:
-                keywords.append("SARC/J")
+                inp["!"].append("SARC/J")
             else:
-                keywords.append("def2/J")
+                inp["!"].append("def2/J")
 
         # TODO(schneiderfelipe): this should probably go to the end of the
         # keywords
-        if v["resolution of identity"] == "RIJCOSX":
-            keywords.append(f"{v['basis set']}/C")
-        if v["resolution of identity"] == "RI-JK":
-            keywords.append("def2/JK")
+        if v["ri"] == "RIJCOSX":
+            inp["!"].append(f"{v['basis set']}/C")
+        if v["ri"] == "RI-JK":
+            inp["!"].append("def2/JK")
 
         if v["theory"] in {"MP2", "CCSD"}:
-            keywords.append(v["frozen core"])
+            inp["!"].append(v["frozen core"])
 
         if v["uco"]:
-            keywords.append("UCO")
+            inp["!"].append("UCO")
 
         if v["numerical frequencies"] and "Freq" in v["task"]:
             v["task"] = v["task"].replace("Freq", "NumFreq")
-        keywords.append(v["task"])
+        if v["task"] != "Energy":
+            inp["!"].append(v["task"])
 
-        if v["numerical quality"]:
-            if v["numerical quality"] > 3:
+        if v["numerical:quality"]:
+            if v["numerical:quality"] > 3:
                 if "Opt" in v["task"]:
-                    keywords.append("TightOpt")
-                keywords.append("TightSCF")
-            keywords.append(f"Grid{v['numerical quality']}")
-            keywords.append(f"FinalGrid{v['numerical quality'] + 1}")
+                    inp["!"].append("TightOpt")
+                inp["!"].append("TightSCF")
+            inp["!"].append(f"Grid{v['numerical:quality']}")
+            inp["!"].append(f"FinalGrid{v['numerical:quality'] + 1}")
 
         if v["short description"]:
-            lines.append(f"# {v['short description']}")
-        lines.append(f"! {' '.join([k for k in keywords if k is not None])}")
+            inp["#"].append(f"{v['short description']}")
 
-        if not v["multiplicity"]:
-            v["multiplicity"] = 1
-        lines.append(f"\n*xyzfile {v['charge']} {v['multiplicity']} init.xyz")
+        if v["scf:maxiter"] and v["scf:maxiter"] != "Auto":
+            inp["scf"].append(f"maxiter {v['scf:maxiter']}")
+        if v["geom:maxiter"] and v["geom:maxiter"] != "Auto":
+            inp["geom"].append(f"maxiter {v['geom:maxiter']}")
+
+        if v["initial hessian"]:
+            inp["geom"].append(v["initial hessian"])
+            if v["initial hessian"] == "inhess read":
+                inp["geom"].append("inhessname 'freq.hess'")
+            if (
+                v["initial hessian"] == "calc_hess true"
+                and v["numerical frequencies"]
+            ):
+                inp["geom"].append("numhess true")
 
         self.text.delete("1.0", "end")
-        self.text.insert("1.0", "\n".join(lines))
+        self.text.insert("1.0", inp.generate())
 
 
 if __name__ == "__main__":
     main_window = Tk()
+    # TODO(schneiderfelipe): we need an icon.
 
     style = Style()
     if style.theme_use() == "default":
@@ -671,4 +902,11 @@ if __name__ == "__main__":
     main_window.title(__doc__.split("\n", 1)[0].strip().strip("."))
     input_frame = InputGUI(main_window)
     input_frame.pack(fill="both", expand=True)
+
+    def on_window_close():
+        """Proceed to close window."""
+        input_frame.store_widgets()
+        main_window.destroy()
+
+    main_window.protocol("WM_DELETE_WINDOW", on_window_close)
     main_window.mainloop()

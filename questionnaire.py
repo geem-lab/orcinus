@@ -2,6 +2,8 @@
 
 """Widget that simplifies defining questionnaires."""
 
+import os
+import pickle
 from tkinter import BooleanVar
 from tkinter import DoubleVar
 from tkinter import IntVar
@@ -17,18 +19,28 @@ import numpy as np
 
 from tooltip import create_tooltip
 
+# TODO(schneiderfelipe): this will change in the future.
+DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+
 
 class Questionnaire(Frame):
     """Interface for simple questionnaires."""
 
     def __init__(
-        self, master=None, fields=None, padx=1, pady=2, column_minsize=240
+        self,
+        master=None,
+        fields=None,
+        state_filename=None,
+        padx=1,
+        pady=2,
+        column_minsize=240,
     ):
         """Construct object."""
         super().__init__(master)
         self.padx = padx
         self.pady = pady
         self.column_minsize = column_minsize
+        self.state_filename = state_filename
         self.master = master
         self.fields = fields
         self.create_widgets()
@@ -56,15 +68,41 @@ class Questionnaire(Frame):
                 values[name] = None
         return values
 
-    def init_widgets(self):
+    def init_widgets(self, *args, ignore_state=False, **kwargs):
         """Clear all fields to default values."""
         if self.fields is None:
             return
 
-        for name, desc in self.fields.items():
-            self.variable[name].set(desc["default"])
+        if (
+            not ignore_state
+            and self.state_filename
+            and os.path.isfile(self.state_filename)
+        ):
+            state_path = os.path.join(DATA_DIR, self.state_filename)
+            with open(state_path, "rb") as f:
+                state = pickle.load(f)
+
+            for name, default_value in state.items():
+                self.variable[name].set(default_value)
+        else:
+            for name, desc in self.fields.items():
+                self.variable[name].set(desc["default"])
 
         self.update_widgets()
+
+    def store_widgets(self, *args, **kwargs):
+        """Store all fields to disk."""
+        if self.fields is None:
+            return
+
+        if self.state_filename:
+            state_path = os.path.join(DATA_DIR, self.state_filename)
+            state = {}
+            for name, _ in self.fields.items():
+                state[name] = self.variable[name].get()
+
+            with open(state_path, "wb") as f:
+                pickle.dump(state, f)
 
     def enable(self, name):
         """Show a widget by name."""
@@ -154,10 +192,10 @@ class Questionnaire(Frame):
                     )
 
             if "default" not in desc:
-                # if no default is given, use the first valid value, or infer
-                # from type.
+                # if no default is given, use the first value (even if None),
+                # or infer from type.
                 if "values" in desc:
-                    desc["default"] = [v for v in values if v is not None][0]
+                    desc["default"] = [v for v in values][0]
                 elif "type" in desc:
                     desc["default"] = desc["type"]()
                 else:
@@ -233,19 +271,33 @@ class Questionnaire(Frame):
             # then accept an argument policy="freeze" or policy="switch" to
             # make things easier. Both "switch" (meaning available/unavailable)
             # and "freeze" (meaning impossible to change) can be used at the
-            # same time.
+            # same time. "freeze" might require setting which value is locked.
             if "switch" in desc:
-                if isinstance(desc["switch"], tuple):
-                    switch, trigger = desc["switch"]
-                    if isinstance(trigger, set):
-                        condition = self.variable[switch].get() in trigger
-                    elif callable(trigger):
-                        condition = trigger(self.variable[switch].get())
+                condition = False
+                print(desc["switch"])
+                if (
+                    isinstance(desc["switch"][0], str)
+                    and len(desc["switch"]) > 1
+                ):
+                    desc["switch"] = [desc["switch"]]
+                for scenario in desc["switch"]:
+                    if isinstance(scenario, tuple):
+                        switch, trigger = scenario
+                        if isinstance(trigger, set):
+                            condition = condition or (
+                                self.variable[switch].get() in trigger
+                            )
+                        elif callable(trigger):
+                            condition = condition or (
+                                trigger(self.variable[switch].get())
+                            )
+                        else:
+                            condition = condition or (
+                                self.variable[switch].get() == trigger
+                            )
                     else:
-                        condition = self.variable[switch].get() == trigger
-                else:
-                    switch = desc["switch"]
-                    condition = self.variable[switch].get()
+                        switch = scenario
+                        condition = condition or (self.variable[switch].get())
 
                 if condition:
                     self.enable(name)
