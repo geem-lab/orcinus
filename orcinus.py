@@ -161,10 +161,8 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": False,
-                    "switch": [
-                        ("task", lambda v: "Freq" in v),
-                        ("initial hessian", "Calculate"),
-                    ],
+                    "switch": lambda k: "Freq" in k["task"]
+                    or k["initial hessian"] == "Calculate",
                 },
                 "charge": {
                     "group": "basic information",
@@ -180,7 +178,7 @@ class InputGUI(Frame):
                     "help": ("Spin multiplicity of you calculation."),
                     "widget": Spinbox,
                     "values": range(1, 101),
-                    "switch": "unrestricted",
+                    "switch": lambda k: k["unrestricted"],
                 },
                 "unrestricted": {
                     "group": "basic information",
@@ -200,7 +198,7 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "values": {False: None, True: "UCO"},
-                    "switch": "unrestricted",
+                    "switch": lambda k: k["unrestricted"],
                 },
                 # TODO(schneiderfelipe): give some support for broken
                 # symmetry (BS-DFT).
@@ -224,8 +222,10 @@ class InputGUI(Frame):
                         "used."
                     ),
                     "widget": Checkbutton,
-                    "values": {True: "FrozenCore", False: "NoFrozenCore"},
-                    "switch": ("theory", {"MP2", "CCSD"}),
+                    # TODO(schneiderfelipe): I am assuming FrozenCore is always
+                    # default.
+                    "values": {True: None, False: "NoFrozenCore"},
+                    "switch": lambda k: k["theory"] in {"MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): switch to a black-box model selector
                 "dlpno": {
@@ -237,7 +237,7 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": True,
-                    "switch": ("theory", "CCSD"),
+                    "switch": lambda k: k["theory"] in {"MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): switch to a black-box model selector
                 "triples correction": {
@@ -248,47 +248,116 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": True,
-                    "switch": ("theory", "CCSD"),
+                    "switch": lambda k: k["theory"] == "CCSD",
                 },
                 "hamiltonian": {
                     "group": "level of theory",
                     "help": ("Which model Hamiltonian should be used."),
                     "values": {"GFN1-xTB": "XTB1", "GFN2-xTB": "XTB2"},
                     "default": "GFN2-xTB",
-                    "switch": ("theory", "DFTB"),
+                    "switch": lambda k: k["theory"] == "DFTB",
                 },
-                # TODO(schneiderfelipe): allow selection of functional class
-                # (LDA, GGA, Meta-GGA, Hybrid, LR-Hybrid, Meta-Hybrid,
-                # Double-Hybrid and LR-Double-Hybrid)
-                "functional": {
+                "dft:family": {
+                    "group": "level of theory",
+                    "text": "Functional family",
+                    "help": (
+                        "Which density functional family should be " "used."
+                    ),
+                    "values": {
+                        s: s.lower()
+                        for s in [
+                            "LDA",
+                            "GGA",
+                            "meta-GGA",
+                            "Hybrid",
+                            "RS-Hybrid",
+                            "meta-Hybrid",
+                            "Double-Hybrid",
+                            "RS-Double-Hybrid",
+                        ]
+                    },
+                    "default": "GGA",
+                    "switch": lambda k: k["theory"] == "DFT",
+                },
+                "dft:lda": {
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": {
-                        "LDA": "PWLDA",
-                        "GGA:B97": "B97",
-                        "GGA:BP86": "BP86",
-                        "GGA:BLYP": "BLYP",
-                        "GGA:PW91": "PW91",
-                        "GGA:PWP": "PWP",
-                        "GGA:PBE": "PBE",
-                        "GGA:revPBE": "revPBE",
-                        "Meta-GGA:M06L": "M06L",
-                        "Meta-GGA:TPSS": "TPSS",
-                        "Hybrid:B3LYP": "B3LYP",
-                        # "Hybrid:B3LYP/G": "B3LYP/G",  # same as in Gaussian
-                        "Hybrid:B3PW91": "B3PW91",
-                        "Hybrid:PWP1": "PWP1",
-                        "Hybrid:PBE0": "PBE0",
-                        "RS-Hybrid:wB97X": "wB97X",
-                        "RS-Hybrid:LC-BLYP": "LC-BLYP",
-                        "RS-Hybrid:CAM-B3LYP": "CAM-B3LYP",
-                        "Meta-Hybrid:TPSSh": "TPSSh",
-                        "Double-Hybrid:B2PLYP": "B2PLYP",
-                        "RS-Double-Hybrid:wB2PLYP": "wB2PLYP",
-                    },
-                    "default": "GGA:BLYP",
-                    "switch": ("theory", "DFT"),
+                    "values": ["PWLDA"],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "LDA",
+                },
+                "dft:gga": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": [
+                        "B97",
+                        "BP86",
+                        "BLYP",
+                        "PW91",
+                        "PWP",
+                        "PBE",
+                        "revPBE",
+                    ],
+                    "default": "BLYP",
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "GGA",
+                },
+                "dft:meta-gga": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": ["M06L", "TPSS"],
+                    "default": "TPSS",
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "meta-GGA",
+                },
+                "dft:hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": [
+                        "B3LYP",
+                        # "B3LYP/G",  # same as in Gaussian
+                        "B3PW91",
+                        "PWP1",
+                        "PBE0",
+                    ],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "Hybrid",
+                },
+                "dft:rs-hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": ["wB97X", "LC-BLYP", "CAM-B3LYP"],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "RS-Hybrid",
+                },
+                "dft:meta-hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": ["TPSSh"],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "meta-Hybrid",
+                },
+                "dft:double-hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": ["B2PLYP"],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "Double-Hybrid",
+                },
+                "dft:rs-double-hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": ["wB2PLYP"],
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "RS-Double-Hybrid",
                 },
                 "dispersion": {
                     "group": "level of theory",
@@ -299,7 +368,7 @@ class InputGUI(Frame):
                     ),
                     "values": [None, "D2", "D3Zero", "D3BJ", "D4"],
                     "default": "D4",
-                    "switch": ("theory", "DFT"),
+                    "switch": lambda k: k["theory"] == "DFT",
                 },
                 "relativity": {
                     "group": "level of theory",
@@ -309,7 +378,8 @@ class InputGUI(Frame):
                         "used."
                     ),
                     "values": [None, "DKH", "ZORA"],
-                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): the 1-center approximation option is
                 # relevant to calculations using ZORA.
@@ -334,10 +404,8 @@ class InputGUI(Frame):
                 # required in a special group for SCF convergence.
                 # TODO(schneiderfelipe): give support for cc basis set family
                 # (cc-pVTZ, etc.).
-                # TODO(schneiderfelipe): give support for Pople-style basis
-                # sets (6-31G, 6-311G, etc.). Other families beside cc and
-                # def2 is ano (they also have aug-cc, ma-def2 and
-                # saug-ano/aug-ano).
+                # TODO(schneiderfelipe): give support for other families such
+                # as ano (they also have aug-cc, ma-def2 and saug-ano/aug-ano).
                 # TODO(schneiderfelipe): extrapolation techniques are
                 # interesting for single point calculations with DLPNO-CC
                 # methods.
@@ -347,8 +415,9 @@ class InputGUI(Frame):
                     "group": "level of theory",
                     "text": "Basis set family",
                     "help": ("Which basis set family should be employed."),
-                    "values": ["def2"],
-                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                    "values": {s: s.lower() for s in ["def2", "cc", "Pople"]},
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 "basis:def2": {
                     "group": "level of theory",
@@ -356,14 +425,66 @@ class InputGUI(Frame):
                     "help": ("Which basis set should be used."),
                     "values": {
                         "DZ(P)": "def2-SV(P)",
+                        "DZ(P)D": "ma-def2-SV(P)",
                         "DZP": "def2-SVP",
-                        "TZP": "def2-TZVP",
+                        "DZPD": "ma-def2-SVP",
                         "TZP(-f)": "def2-TZVP(-f)",
+                        "TZP(-f)D": "ma-def2-TZVP(-f)",
+                        "TZP": "def2-TZVP",
+                        "TZPD": "ma-def2-TZVP",
                         "TZPP": "def2-TZVPP",
+                        "TZPPD": "ma-def2-TZVPP",
                         "QZP": "def2-QZVP",
                         "QZPP": "def2-QZVPP",
+                        "QZPPD": "ma-def2-QZVPP",
                     },
                     "default": "TZP",
+                    "switch": lambda k: k["basis:family"] == "def2",
+                },
+                "basis:cc": {
+                    "group": "level of theory",
+                    "text": "Basis set quality",
+                    "help": ("Which basis set should be used."),
+                    "values": {
+                        "DZP": "cc-pVDZ",
+                        "DZPD": "aug-cc-pVDZ",
+                        "TZP": "cc-pVTZ",
+                        "TZPD": "aug-cc-pVTZ",
+                        "QZP": "cc-pVQZ",
+                        "QZPD": "aug-cc-pVQZ",
+                        "5ZP": "cc-pV5Z",
+                        "5ZPD": "aug-cc-pV5Z",
+                        "6ZP": "cc-pV6Z",
+                        "6ZPD": "aug-cc-pV6Z",
+                    },
+                    # TODO(schneiderfelipe): this should probably change!
+                    "default": "TZP",
+                    "switch": lambda k: k["basis:family"] == "cc",
+                },
+                "basis:pople": {
+                    "group": "level of theory",
+                    "text": "Basis set quality",
+                    "help": ("Which basis set should be used."),
+                    "values": {
+                        # "M": "STO-3G",
+                        # "M(P)": "STO-3G*",
+                        "DZ": "6-31G",
+                        "DZ(P)": "6-31G(d)",
+                        "DZP": "6-31G(d,p)",
+                        # "DZ(D)": "6-31+G",
+                        # "DZ(PD)": "6-31+G(d)",
+                        "DZP(D)": "6-31+G(d,p)",
+                        "DZPD": "6-31++G(d,p)",
+                        "TZ": "6-311G",
+                        "TZ(P)": "6-311G(2df)",
+                        "TZP": "6-311G(2df,2pd)",
+                        # "TZ(D)": "6-311+G",
+                        # "TZ(PD)": "6-311+G(2df)",
+                        "TZP(D)": "6-311+G(2df,2pd)",
+                        "TZPD": "6-311++G(2df,2pd)",
+                    },
+                    "default": "TZP",
+                    "switch": lambda k: k["basis:family"] == "Pople",
                 },
                 "ecp": {
                     "group": "level of theory",
@@ -382,7 +503,8 @@ class InputGUI(Frame):
                     # case, say it in the help.
                     "values": [None, "def2-ECP"],
                     "default": "def2-ECP",
-                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): support solvation models (GBSA for
                 # XTB, CPCM and SMD). Cavity construction in continuum
@@ -415,6 +537,7 @@ class InputGUI(Frame):
                 # TODO(schneiderfelipe): set analogous standards for COSX
                 # grids as well for when RIJCOSX is used.
                 "numerical:quality": {
+                    "text": "Numerical quality",
                     "help": (
                         "Which numerical quality is desired. Good is "
                         "defined as enough to avoid imaginary "
@@ -429,17 +552,15 @@ class InputGUI(Frame):
                         "Excellent": 6,
                     },
                     "default": "Good",
-                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): choose resolution of identity as a
                 # on/off tick and pre-select the best approximations in each
-                # case. Choose appropriate auxiliary basis sets either based on
-                # basis set class, or using AutoAux.
-                # TODO(schneiderfelipe): support specifying number of
-                # processors. This should be in the acceleration section,
-                # together with resolution of identity. Such section must
-                # contain only things that make calculations fast without
-                # changing accuracy.
+                # case.
+                # TODO(schneiderfelipe): the acceleration section must contain
+                # only things that make calculations fast without changing
+                # accuracy.
                 # TODO(schneiderfelipe): support setting maximum memory
                 # requirements. I prefer to set it to total memory and
                 # calculate the value per core, as this is the relevant
@@ -458,7 +579,8 @@ class InputGUI(Frame):
                 #     "%maxcore 3000"
                 #
                 # which is new behavior.
-                "ri": {
+                # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
+                "ri:hf": {
                     "group": "acceleration",
                     "text": "Resolution of identity",
                     "help": (
@@ -471,12 +593,45 @@ class InputGUI(Frame):
                     # Say it in the help.
                     "values": {
                         "Auto": "Auto",
-                        None: "NoRI",
-                        "RI": "RI",
-                        "RI-JK": "RI-JK",
-                        "RIJCOSX": "RIJCOSX",
+                        None: "NoRI",  # HF: Exact J + exact K: no auxiliary functions and no grids needed.
+                        # Hybrid DFT: Exact J + exact K + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
+                        "RIJONX": "RIJONX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
+                        # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
+                        "RIJDX": "RIJDX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
+                        # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
+                        "RIJK": "RI-JK",  # HF: RIJ + RIK = RIJK: <basis>/JK auxiliaries, no grids.
+                        # Hybrid DFT: RIJ + RIK + GGA-XC: <basis>/ JK auxiliaries, DFT grid controlled by the GRID keyword.
+                        "RIJCOSX": "RIJCOSX",  # HF: RIJ + COSX: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword.
+                        # Hybrid DFT: RIJ + COSX + GGA-XC: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword, DFT grid controlled by the GRID keyword.
                     },
-                    "switch": ("theory", {"HF", "DFT", "MP2", "CCSD"}),
+                    "switch": lambda k: k["theory"] in {"HF", "MP2", "CCSD"}
+                    or (k["theory"] == "DFT" and "Hybrid" in k["dft:family"]),
+                },
+                "ri:gga": {
+                    "group": "acceleration",
+                    "text": "Resolution of identity",
+                    "help": (
+                        "Whether a resolution of identity approximation "
+                        "should be used."
+                    ),
+                    # TODO(schneiderfelipe): this is a case where it makes
+                    # sense to add both None (explicitly no) and "Auto"
+                    # (standard ORCA policy), as they mean different things.
+                    # Say it in the help.
+                    "values": {
+                        "Auto": "Auto",
+                        None: "NoRI",  # GGA DFT: Exact J + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
+                        "RIJ": "RI",  # GGA DFT: RIJ + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
+                    },
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and "GGA" in k["dft:family"],
+                },
+                "nprocs": {
+                    "group": "acceleration",
+                    "text": "Number of processes",
+                    "help": ("Number of parallel processes to use."),
+                    "widget": Spinbox,
+                    "values": [2 ** n for n in range(6)],
                 },
                 "scf:maxiter": {
                     "tab": "details",
@@ -757,9 +912,13 @@ class InputGUI(Frame):
                     "default": False,
                 },
                 # TODO(schneiderfelipe): support output keywords such as
-                # LargePrint, PrintBasis and PrintMOs. An option "output level"
-                # is also interesting.
-                "Wavefunction file": {
+                # PrintBasis and PrintMOs.
+                "output level": {
+                    "tab": "output",
+                    "help": ("How much output should be created."),
+                    "values": {"Auto": None, "Large": "LargePrint"},
+                },
+                "wavefunction file": {
                     "tab": "output",
                     "group": "analysis",
                     "help": (
@@ -816,45 +975,90 @@ class InputGUI(Frame):
         #     else:
         #         inp["!"].append("RHF")
 
-        if v["ri"] and v["ri"] != "Auto":
-            inp["!"].append(v["ri"])
-        inp["!"].append(v["relativity"])
+        ri = None
+        if v["ri:gga"] and v["ri:gga"] != "Auto":
+            ri = v["ri:gga"]
+        elif v["ri:hf"] and v["ri:hf"] != "Auto":
+            ri = v["ri:hf"]
 
-        if v["theory"] in {"HF", "MP2"}:
+        if v["theory"] == "HF":
             inp["!"].append(v["theory"])
-        if v["theory"] == "DFT":
-            inp["!"].append(v["functional"])
-        elif v["theory"] == "DFTB":
-            inp["!"].append(v["hamiltonian"])
-        elif v["theory"] == "CCSD":
+        elif v["theory"] == "MP2":
             kw = v["theory"]
-            if v["triples correction"]:
-                kw = kw + "(T)"
             if v["dlpno"]:
                 kw = "DLPNO-" + kw
+            elif ri and ri != "NoRI":
+                kw = "RI-" + kw
             inp["!"].append(kw)
+        elif v["theory"] == "CCSD":
+            kw = v["theory"]
+            if v["dlpno"]:
+                # TODO(schneiderfelipe): this requires a /C basis set as well.
+                kw = "DLPNO-" + kw
+            if v["triples correction"]:
+                kw = kw + "(T)"
+            inp["!"].append(kw)
+        elif v["theory"] == "DFTB":
+            inp["!"].append(v["hamiltonian"])
+        elif v["theory"] == "DFT":
+            inp["!"].append(v[f"dft:{v['dft:family']}"])
 
         inp["!"].append(v["dispersion"])
-
         inp["!"].append(v[f"basis:{v['basis:family']}"])
-        if v["ri"] in {"RI", "RIJCOSX"}:
-            if v["relativity"]:
-                inp["!"].append("SARC/J")
-            else:
-                inp["!"].append("def2/J")
+        inp["!"].append(v["relativity"])
 
-        # TODO(schneiderfelipe): this should probably go to the end of the
-        # keywords
-        if v["ri"] == "RIJCOSX":
-            inp["!"].append(f"{v['basis set']}/C")
-        if v["ri"] == "RI-JK":
-            inp["!"].append("def2/JK")
+        if ri != "NoRI":
+            auxbas = set()
+            # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
+            if ri in {"RI", "RIJONX", "RIJDX", "RIJCOSX"}:
+                if v["basis:family"] == "def2":
+                    if not v["relativity"]:
+                        auxbas.add("def2/J")
+                    else:
+                        auxbas.add("SARC/J")
+                else:
+                    auxbas.add("AutoAux")
+            elif ri == "RI-JK":
+                if v["basis:family"] == "def2":
+                    auxbas.add("def2/JK")
+                elif (
+                    v["basis:family"] == "cc"
+                    and v["basis:cc"]
+                    in {f"{prefix}cc-pV{n}Z" for n in {"T", "Q", 5}}
+                    for prefix in {"", "aug-"}
+                ):
+                    auxbas.add(f"{v['basis:cc']}/JK")
+                else:
+                    auxbas.add("AutoAux")
+
+            if ri and v["theory"] == "MP2":
+                if (
+                    v["basis:family"] == "def2"
+                    and v["basis:def2"]
+                    in {"def2-SVP", "def2-TZVP", "def2-TZVPP", "def2-QZVPP"}
+                ) or (
+                    v["basis:family"] == "cc"
+                    and v["basis:cc"]
+                    in {
+                        f"{prefix}cc-pV{n}Z"
+                        for prefix in {"", "aug-"}
+                        for n in {"D", "T", "Q", 5, 6}
+                    }
+                ):
+                    auxbas.add(f"{v['basis:cc']}/C")
+                else:
+                    auxbas.add("AutoAux")
+
+            if "AutoAux" in auxbas:
+                inp["!"].append("AutoAux")
+            else:
+                inp["!"].extend(sorted(auxbas))
+        inp["!"].append(ri)
 
         if v["theory"] in {"MP2", "CCSD"}:
             inp["!"].append(v["frozen core"])
 
-        if v["uco"]:
-            inp["!"].append("UCO")
+        inp["!"].append(v["uco"])
 
         if v["numerical frequencies"] and "Freq" in v["task"]:
             v["task"] = v["task"].replace("Freq", "NumFreq")
@@ -866,8 +1070,14 @@ class InputGUI(Frame):
                 if "Opt" in v["task"]:
                     inp["!"].append("TightOpt")
                 inp["!"].append("TightSCF")
-            inp["!"].append(f"Grid{v['numerical:quality']}")
-            inp["!"].append(f"FinalGrid{v['numerical:quality'] + 1}")
+            if v["theory"] == "DFT":
+                inp["!"].append(f"Grid{v['numerical:quality']}")
+                inp["!"].append(f"FinalGrid{v['numerical:quality'] + 1}")
+            if ri == "RIJCOSX":
+                # TODO(schneiderfelipe): this should be corrected
+                inp["!"].append(f"GridX{v['numerical:quality']}")
+
+        inp["!"].append(v["output level"])
 
         if v["short description"]:
             inp["#"].append(f"{v['short description']}")
@@ -886,6 +1096,9 @@ class InputGUI(Frame):
                 and v["numerical frequencies"]
             ):
                 inp["geom"].append("numhess true")
+
+        if v["nprocs"] > 1:
+            inp["pal"].append(f"nprocs {v['nprocs']}")
 
         self.text.delete("1.0", "end")
         self.text.insert("1.0", inp.generate())

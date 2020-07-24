@@ -62,7 +62,10 @@ class Questionnaire(Frame):
             if "values" in self.fields[name]:
                 translator = self.fields[name]["values"]
                 if isinstance(translator, dict):
-                    values[name] = translator[values[name]]
+                    try:
+                        values[name] = translator[values[name]]
+                    except KeyError:
+                        values[name] = translator[self.fields[name]["default"]]
 
             if values[name] == "None":
                 values[name] = None
@@ -73,6 +76,9 @@ class Questionnaire(Frame):
         if self.fields is None:
             return
 
+        init_values = {
+            name: desc["default"] for name, desc in self.fields.items()
+        }
         if (
             not ignore_state
             and self.state_filename
@@ -81,12 +87,13 @@ class Questionnaire(Frame):
             state_path = os.path.join(DATA_DIR, self.state_filename)
             with open(state_path, "rb") as f:
                 state = pickle.load(f)
+            init_values.update(state)
 
-            for name, default_value in state.items():
-                self.variable[name].set(default_value)
-        else:
-            for name, desc in self.fields.items():
-                self.variable[name].set(desc["default"])
+        for name, value in init_values.items():
+            try:
+                self.variable[name].set(value)
+            except KeyError:
+                pass
 
         self.update_widgets()
 
@@ -264,6 +271,7 @@ class Questionnaire(Frame):
         if self.fields is None:
             return
 
+        options = {name: self.variable[name].get() for name in self.variable}
         for name, desc in self.fields.items():
             # TODO(schneiderfelipe): allow an analogous key "freeze", which
             # does exactly the same as switch, but enables/disables the widget
@@ -273,33 +281,7 @@ class Questionnaire(Frame):
             # and "freeze" (meaning impossible to change) can be used at the
             # same time. "freeze" might require setting which value is locked.
             if "switch" in desc:
-                condition = False
-                print(desc["switch"])
-                if (
-                    isinstance(desc["switch"][0], str)
-                    and len(desc["switch"]) > 1
-                ):
-                    desc["switch"] = [desc["switch"]]
-                for scenario in desc["switch"]:
-                    if isinstance(scenario, tuple):
-                        switch, trigger = scenario
-                        if isinstance(trigger, set):
-                            condition = condition or (
-                                self.variable[switch].get() in trigger
-                            )
-                        elif callable(trigger):
-                            condition = condition or (
-                                trigger(self.variable[switch].get())
-                            )
-                        else:
-                            condition = condition or (
-                                self.variable[switch].get() == trigger
-                            )
-                    else:
-                        switch = scenario
-                        condition = condition or (self.variable[switch].get())
-
-                if condition:
+                if desc["switch"](options):
                     self.enable(name)
                 else:
                     self.disable(name)
