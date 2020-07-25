@@ -137,32 +137,23 @@ class InputGUI(Frame):
                 "task": {
                     "group": "basic information",
                     "help": ("The main task of your calculation."),
-                    "values": [
-                        "Energy",
-                        "Opt",
-                        "Freq",
-                        "Opt Freq",
-                        # "Scan",
-                        "OptTS",
-                        "OptTS Freq",
-                        "IRC",
-                        "NEB",
-                        "NEB Freq",
-                        # "MD",
-                        # "NoIter",
-                    ],
-                },
-                # TODO(schneiderfelipe): automatically select numerical
-                # frequencies when only that is available.
-                "numerical frequencies": {
-                    "group": "basic information",
-                    "help": (
-                        "Whether to do a numerical frequencies calculation."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                    "switch": lambda k: "Freq" in k["task"]
-                    or k["initial hessian"] == "Calculate",
+                    "values": {
+                        s: s.replace("+", " ")
+                        for s in [
+                            "Energy",
+                            "Opt",
+                            "Freq",
+                            "Opt+Freq",
+                            # "Scan",
+                            "OptTS",
+                            "OptTS+Freq",
+                            "IRC",
+                            "NEB",
+                            "NEB+Freq",
+                            # "MD",
+                            # "NoIter",
+                        ]
+                    },
                 },
                 "charge": {
                     "group": "basic information",
@@ -991,26 +982,30 @@ class InputGUI(Frame):
         elif ri == "RI-JK":
             use_auxjk = True
 
-        task = v["theory"]
+        theory = v["theory"]
         if v["theory"] in {"MP2", "CCSD"}:
             if v["dlpno"]:
-                task = "DLPNO-" + task
+                theory = "DLPNO-" + theory
                 use_auxc = True
             elif ri and ri not in {None, "NoRI"}:
-                task = "RI-" + task
+                theory = "RI-" + theory
                 use_auxc = True
         elif v["theory"] == "DFTB":
-            task = v["hamiltonian"]
+            theory = v["hamiltonian"]
         elif v["theory"] == "DFT":
-            task = v[f"dft:{v['dft:family']}"]
+            theory = v[f"dft:{v['dft:family']}"]
 
-        if v["theory"] == "CCSD" and v["triples correction"]:
-            task = task + "(T)"
+        use_numgrad = False
+        use_numfreq = False
+        if v["theory"] == "CCSD":
+            use_numgrad = True
+            if v["triples correction"]:
+                theory = theory + "(T)"
 
-        inp["!"].append(task)
+        inp["!"].append(theory)
         inp["!"].append(v["dispersion"])
-        inp["!"].append(v[f"basis:{v['basis:family']}"])
         inp["!"].append(v["relativity"])
+        inp["!"].append(v[f"basis:{v['basis:family']}"])
 
         if ri != "NoRI":
             auxbas = set()
@@ -1072,14 +1067,18 @@ class InputGUI(Frame):
 
         inp["!"].append(v["uco"])
 
-        if v["numerical frequencies"] and "Freq" in v["task"]:
-            v["task"] = v["task"].replace("Freq", "NumFreq")
-        if v["task"] != "Energy":
-            inp["!"].append(v["task"])
+        task = v["task"]
+        if use_numgrad and "Opt" in task:
+            task = task.replace("Opt", "Opt NumGrad")
+        if use_numfreq and "Freq" in task:
+            task = task.replace("Freq", "NumFreq")
+
+        if task != "Energy":
+            inp["!"].append(task)
 
         if v["numerical:quality"]:
             if v["numerical:quality"] > 3:
-                if "Opt" in v["task"]:
+                if "Opt" in task:
                     inp["!"].append("TightOpt")
                 inp["!"].append("TightSCF")
             if v["theory"] == "DFT":
@@ -1103,10 +1102,7 @@ class InputGUI(Frame):
             inp["geom"].append(v["initial hessian"])
             if v["initial hessian"] == "inhess read":
                 inp["geom"].append("inhessname 'freq.hess'")
-            if (
-                v["initial hessian"] == "calc_hess true"
-                and v["numerical frequencies"]
-            ):
+            if v["initial hessian"] == "calc_hess true" and use_numfreq:
                 inp["geom"].append("numhess true")
 
         if v["nprocs"] > 1:
