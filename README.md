@@ -4,6 +4,9 @@ A simple graphical user interface for the ORCA quantum chemistry package.
 
 ## Things to do
 
+Next thing: https://www.orcasoftware.de/tutorials/prop/thermo.html#comparison-to-experiment
+Very next thing: https://sites.google.com/site/orcainputlibrary/excited-state-calculations/tddft
+
 - Do stunts as function of Theory/Task/Property. First suggestions:
   - DFTB
   - Opt

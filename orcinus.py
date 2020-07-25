@@ -218,7 +218,26 @@ class InputGUI(Frame):
                     "values": {True: None, False: "NoFrozenCore"},
                     "switch": lambda k: k["theory"] in {"MP2", "CCSD"},
                 },
-                # TODO(schneiderfelipe): switch to a black-box model selector
+                "ri": {
+                    "group": "level of theory",
+                    "text": "Resolution of identity",
+                    "help": (
+                        "Whether the resolution of identity approximation "
+                        "should be used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    "switch": lambda k: (
+                        k["theory"] in {"HF", "MP2", "CCSD"}
+                        or (
+                            k["theory"] == "DFT"
+                            and (
+                                "GGA" in k["dft:family"]
+                                or "Hybrid" in k["dft:family"]
+                            )
+                        )
+                    ),
+                },
                 "dlpno": {
                     "group": "level of theory",
                     "text": "DLPNO",
@@ -228,9 +247,14 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": True,
-                    "switch": lambda k: k["theory"] in {"MP2", "CCSD"},
+                    "switch": lambda k: (
+                        k["theory"] in {"MP2", "CCSD"}
+                        or (
+                            k["theory"] == "DFT"
+                            and "Double-Hybrid" in k["dft:family"]
+                        )
+                    ),
                 },
-                # TODO(schneiderfelipe): switch to a black-box model selector
                 "triples correction": {
                     "group": "level of theory",
                     "help": (
@@ -274,7 +298,8 @@ class InputGUI(Frame):
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": ["PWLDA"],
+                    "values": ["HFS", "VWN5", "VWN3", "PWLDA"],
+                    "default": "VWN5",
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "LDA",
                 },
@@ -283,62 +308,109 @@ class InputGUI(Frame):
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
                     "values": [
-                        "B97",
                         "BP86",
                         "BLYP",
+                        "OLYP",
+                        "GLYP",
+                        "XLYP",
                         "PW91",
-                        "PWP",
+                        "mPWPW",
+                        "mPWLYP",
                         "PBE",
+                        "rPBE",
                         "revPBE",
+                        "PWP",
+                        # "B97",
                     ],
                     "default": "BLYP",
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "GGA",
-                },
-                "dft:meta-gga": {
-                    "group": "level of theory",
-                    "text": "Exchange-correlation functional",
-                    "help": ("Which density functional should be used."),
-                    "values": ["M06L", "TPSS"],
-                    "default": "TPSS",
-                    "switch": lambda k: k["theory"] == "DFT"
-                    and k["dft:family"] == "meta-GGA",
                 },
                 "dft:hybrid": {
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
                     "values": [
+                        "B1LYP",
                         "B3LYP",
-                        # "B3LYP/G",  # same as in Gaussian
-                        "B3PW91",
-                        "PWP1",
+                        "B3LYP/G",  # same as in Gaussian
+                        "O3LYP",
+                        "X3LYP",
+                        "B1P",
+                        "B3P",
+                        "B3PW",
+                        "PW1PW",
+                        "mPW1PW",
+                        "mPW1LYP",
                         "PBE0",
+                        "PW6B95",
+                        "BHandHLYP",
                     ],
+                    "default": "B3LYP",
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "Hybrid",
                 },
-                "dft:rs-hybrid": {
+                "dft:meta-gga": {
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": ["wB97X", "LC-BLYP", "CAM-B3LYP"],
+                    "values": [
+                        "TPSS",
+                        "M06L",
+                        "B97M-V",
+                        "B97M-D3BJ",
+                        "SCANfunc",
+                    ],
+                    "default": "SCANfunc",
                     "switch": lambda k: k["theory"] == "DFT"
-                    and k["dft:family"] == "RS-Hybrid",
+                    and k["dft:family"] == "meta-GGA",
                 },
                 "dft:meta-hybrid": {
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": ["TPSSh"],
+                    "values": ["TPSSh", "TPSS0", "M06", "M062X"],
+                    "default": "TPSSh",
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "meta-Hybrid",
+                },
+                "dft:rs-hybrid": {
+                    "group": "level of theory",
+                    "text": "Exchange-correlation functional",
+                    "help": ("Which density functional should be used."),
+                    "values": [
+                        "wB97",
+                        "wB97X",
+                        "wB97X-D3",
+                        "wB97X-V",
+                        "wB97X-D3BJ",
+                        "wB97M-V",
+                        "wB97M-D3BJ",
+                        "CAM-B3LYP" "LC-BLYP",
+                    ],
+                    "default": "wB97X",
+                    "switch": lambda k: k["theory"] == "DFT"
+                    and k["dft:family"] == "RS-Hybrid",
                 },
                 "dft:double-hybrid": {
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": ["B2PLYP"],
+                    "values": [
+                        "B2PLYP",
+                        "B2PLYP-D",
+                        "B2PLYP-D3",
+                        "mPW2PLYP",
+                        "mPW2PLYP-D",
+                        "B2GP-PLYP",
+                        "B2K-PLYP",
+                        "B2T-PLYP",
+                        "PWPB95",
+                        "DSD-BLYP",
+                        "DSD-PBEP86",
+                        "DSD-PBEB95",
+                    ],
+                    "default": "B2PLYP",
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "Double-Hybrid",
                 },
@@ -346,7 +418,7 @@ class InputGUI(Frame):
                     "group": "level of theory",
                     "text": "Exchange-correlation functional",
                     "help": ("Which density functional should be used."),
-                    "values": ["wB2PLYP"],
+                    "values": ["wB2PLYP", "wB2GP-PLYP"],
                     "switch": lambda k: k["theory"] == "DFT"
                     and k["dft:family"] == "RS-Double-Hybrid",
                 },
@@ -578,14 +650,10 @@ class InputGUI(Frame):
                         "Whether a resolution of identity approximation "
                         "should be used."
                     ),
-                    # TODO(schneiderfelipe): this is a case where it makes
-                    # sense to add both None (explicitly no) and "Auto"
-                    # (standard ORCA policy), as they mean different things.
-                    # Say it in the help.
                     "values": {
-                        None: "NoRI",  # HF: Exact J + exact K: no auxiliary functions and no grids needed.
+                        # None: "NoRI",  # HF: Exact J + exact K: no auxiliary functions and no grids needed.
                         # Hybrid DFT: Exact J + exact K + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
-                        "Auto": "Auto",
+                        # "Auto": "Auto",
                         "RIJONX": "RIJONX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
                         # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
                         "RIJDX": "RIJDX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
@@ -596,8 +664,14 @@ class InputGUI(Frame):
                         # Hybrid DFT: RIJ + COSX + GGA-XC: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword, DFT grid controlled by the GRID keyword.
                     },
                     "default": "RIJCOSX",
-                    "switch": lambda k: k["theory"] in {"HF", "MP2", "CCSD"}
-                    or (k["theory"] == "DFT" and "Hybrid" in k["dft:family"]),
+                    "switch": lambda k: k["ri"]
+                    and (
+                        k["theory"] in {"HF", "MP2", "CCSD"}
+                        or (
+                            k["theory"] == "DFT"
+                            and "Hybrid" in k["dft:family"]
+                        )
+                    ),
                 },
                 "ri:gga": {
                     "group": "acceleration",
@@ -606,18 +680,14 @@ class InputGUI(Frame):
                         "Whether a resolution of identity approximation "
                         "should be used."
                     ),
-                    # TODO(schneiderfelipe): this is a case where it makes
-                    # sense to add both None (explicitly no) and "Auto"
-                    # (standard ORCA policy), as they mean different things.
-                    # Say it in the help.
                     "values": {
-                        None: "NoRI",  # GGA DFT: Exact J + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
-                        "Auto": "Auto",
-                        "RIJ": "RI",  # GGA DFT: RIJ + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
+                        # None: "NoRI",  # GGA DFT: Exact J + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
+                        # "Auto": "Auto",
+                        "RIJ": "RI"  # GGA DFT: RIJ + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
                     },
                     "default": "RIJ",
-                    "switch": lambda k: k["theory"] == "DFT"
-                    and "GGA" in k["dft:family"],
+                    "switch": lambda k: k["ri"]
+                    and (k["theory"] == "DFT" and "GGA" in k["dft:family"]),
                 },
                 "nprocs": {
                     "group": "acceleration",
@@ -740,6 +810,26 @@ class InputGUI(Frame):
                     ),
                     "values": ["Loose", "Normal", "Tight", "VeryTight"],
                     "default": "Normal",
+                },
+                "freq:restart": {
+                    "tab": "details",
+                    "group": "frequencies",
+                    "text": "Restart frequencies calculation",
+                    "help": (
+                        "Whether a frequencies calculation should be "
+                        "restarted."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "freq:scaling": {
+                    "tab": "details",
+                    "group": "frequencies",
+                    "text": "Frequency scaling",
+                    "help": ("Number to multiply all your frequency values."),
+                    "widget": Spinbox,
+                    "values": list(np.arange(0.95, 1.05, 0.01)),
+                    "default": 1.0,
                 },
                 "nuclear model": {
                     "tab": "details",
@@ -969,7 +1059,9 @@ class InputGUI(Frame):
         #         inp["!"].append("RHF")
 
         ri = None
-        if v["ri:gga"] and v["ri:gga"] != "Auto":
+        if not v["ri"]:
+            ri = "NoRI"
+        elif v["ri:gga"] and v["ri:gga"] != "Auto":
             ri = v["ri:gga"]
         elif v["ri:hf"] and v["ri:hf"] != "Auto":
             ri = v["ri:hf"]
@@ -983,24 +1075,42 @@ class InputGUI(Frame):
             use_auxjk = True
 
         theory = v["theory"]
-        if v["theory"] in {"MP2", "CCSD"}:
+        if v["theory"] == "DFTB":
+            theory = v["hamiltonian"]
+        elif v["theory"] == "DFT":
+            theory = v[f"dft:{v['dft:family']}"]
+
+        if theory in {"MP2", "CCSD"} or (
+            v["theory"] == "DFT" and "double-hybrid" in v["dft:family"]
+        ):
             if v["dlpno"]:
                 theory = "DLPNO-" + theory
                 use_auxc = True
             elif ri and ri not in {None, "NoRI"}:
                 theory = "RI-" + theory
                 use_auxc = True
-        elif v["theory"] == "DFTB":
-            theory = v["hamiltonian"]
-        elif v["theory"] == "DFT":
-            theory = v[f"dft:{v['dft:family']}"]
 
-        use_numgrad = False
-        use_numfreq = False
         if v["theory"] == "CCSD":
-            use_numgrad = True
             if v["triples correction"]:
                 theory = theory + "(T)"
+
+        use_numfreq = False
+        if (
+            v["relativity"]
+            or ri == "RI-JK"
+            or (
+                v["theory"] == "DFT"
+                and (
+                    "meta-gga" in v["dft:family"]
+                    or "double-hybrid" in v["dft:family"]
+                )
+            )
+        ):
+            use_numfreq = True
+
+        use_numgrad = False
+        if v["theory"] == "CCSD":
+            use_numgrad = True
 
         inp["!"].append(theory)
         inp["!"].append(v["dispersion"])
@@ -1041,7 +1151,7 @@ class InputGUI(Frame):
                         "def2-TZVPP",
                         "def2-QZVPP",
                     }:
-                        auxbas.add(f"{v['basis:cc']}/C")
+                        auxbas.add(f"{v['basis:def2']}/C")
                     else:
                         auxbas.add("AutoAux")
                 elif v["basis:family"] == "cc":
@@ -1104,6 +1214,11 @@ class InputGUI(Frame):
                 inp["geom"].append("inhessname 'freq.hess'")
             if v["initial hessian"] == "calc_hess true" and use_numfreq:
                 inp["geom"].append("numhess true")
+
+        if v["freq:restart"]:
+            inp["freq"].append("restart true")
+        if v["freq:scaling"] and v["freq:scaling"] != 1.0:
+            inp["freq"].append(f"scalfreq {v['freq:scaling']}")
 
         if v["nprocs"] > 1:
             inp["pal"].append(f"nprocs {v['nprocs']}")
