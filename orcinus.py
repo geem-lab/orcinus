@@ -592,9 +592,9 @@ class InputGUI(Frame):
                     # (standard ORCA policy), as they mean different things.
                     # Say it in the help.
                     "values": {
-                        "Auto": "Auto",
                         None: "NoRI",  # HF: Exact J + exact K: no auxiliary functions and no grids needed.
                         # Hybrid DFT: Exact J + exact K + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
+                        "Auto": "Auto",
                         "RIJONX": "RIJONX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
                         # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
                         "RIJDX": "RIJDX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
@@ -604,6 +604,7 @@ class InputGUI(Frame):
                         "RIJCOSX": "RIJCOSX",  # HF: RIJ + COSX: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword.
                         # Hybrid DFT: RIJ + COSX + GGA-XC: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword, DFT grid controlled by the GRID keyword.
                     },
+                    "default": "RIJCOSX",
                     "switch": lambda k: k["theory"] in {"HF", "MP2", "CCSD"}
                     or (k["theory"] == "DFT" and "Hybrid" in k["dft:family"]),
                 },
@@ -619,10 +620,11 @@ class InputGUI(Frame):
                     # (standard ORCA policy), as they mean different things.
                     # Say it in the help.
                     "values": {
-                        "Auto": "Auto",
                         None: "NoRI",  # GGA DFT: Exact J + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
+                        "Auto": "Auto",
                         "RIJ": "RI",  # GGA DFT: RIJ + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
                     },
+                    "default": "RIJ",
                     "switch": lambda k: k["theory"] == "DFT"
                     and "GGA" in k["dft:family"],
                 },
@@ -953,10 +955,10 @@ class InputGUI(Frame):
 
         self.update_widgets()
 
+    # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
     def update_widgets(self, *args, **kwargs):
         """Update input content with currently selected options."""
         v = self.questions.get_values()
-        print(v)  # TODO(schneiderfelipe): do proper logging, this is debug!
         inp = ORCAInput()
 
         if not v["spin"]:
@@ -981,36 +983,38 @@ class InputGUI(Frame):
         elif v["ri:hf"] and v["ri:hf"] != "Auto":
             ri = v["ri:hf"]
 
-        if v["theory"] == "HF":
-            inp["!"].append(v["theory"])
-        elif v["theory"] == "MP2":
-            kw = v["theory"]
-            if v["dlpno"]:
-                kw = "DLPNO-" + kw
-            elif ri and ri != "NoRI":
-                kw = "RI-" + kw
-            inp["!"].append(kw)
-        elif v["theory"] == "CCSD":
-            kw = v["theory"]
-            if v["dlpno"]:
-                # TODO(schneiderfelipe): this requires a /C basis set as well.
-                kw = "DLPNO-" + kw
-            if v["triples correction"]:
-                kw = kw + "(T)"
-            inp["!"].append(kw)
-        elif v["theory"] == "DFTB":
-            inp["!"].append(v["hamiltonian"])
-        elif v["theory"] == "DFT":
-            inp["!"].append(v[f"dft:{v['dft:family']}"])
+        use_auxj = False
+        use_auxjk = False
+        use_auxc = False
+        if ri in {"RI", "RIJONX", "RIJDX", "RIJCOSX"}:
+            use_auxj = True
+        elif ri == "RI-JK":
+            use_auxjk = True
 
+        task = v["theory"]
+        if v["theory"] in {"MP2", "CCSD"}:
+            if v["dlpno"]:
+                task = "DLPNO-" + task
+                use_auxc = True
+            elif ri and ri not in {None, "NoRI"}:
+                task = "RI-" + task
+                use_auxc = True
+        elif v["theory"] == "DFTB":
+            task = v["hamiltonian"]
+        elif v["theory"] == "DFT":
+            task = v[f"dft:{v['dft:family']}"]
+
+        if v["theory"] == "CCSD" and v["triples correction"]:
+            task = task + "(T)"
+
+        inp["!"].append(task)
         inp["!"].append(v["dispersion"])
         inp["!"].append(v[f"basis:{v['basis:family']}"])
         inp["!"].append(v["relativity"])
 
         if ri != "NoRI":
             auxbas = set()
-            # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
-            if ri in {"RI", "RIJONX", "RIJDX", "RIJCOSX"}:
+            if use_auxj:
                 if v["basis:family"] == "def2":
                     if not v["relativity"]:
                         auxbas.add("def2/J")
@@ -1018,34 +1022,42 @@ class InputGUI(Frame):
                         auxbas.add("SARC/J")
                 else:
                     auxbas.add("AutoAux")
-            elif ri == "RI-JK":
+
+            if use_auxjk:
                 if v["basis:family"] == "def2":
                     auxbas.add("def2/JK")
-                elif (
-                    v["basis:family"] == "cc"
-                    and v["basis:cc"]
-                    in {f"{prefix}cc-pV{n}Z" for n in {"T", "Q", 5}}
-                    for prefix in {"", "aug-"}
-                ):
-                    auxbas.add(f"{v['basis:cc']}/JK")
+                elif v["basis:family"] == "cc":
+                    if v["basis:cc"] in {
+                        f"{prefix}cc-pV{n}Z"
+                        for n in {"T", "Q", 5}
+                        for prefix in {"", "aug-"}
+                    }:
+                        auxbas.add(f"{v['basis:cc']}/JK")
+                    else:
+                        auxbas.add("AutoAux")
                 else:
                     auxbas.add("AutoAux")
 
-            if ri and v["theory"] == "MP2":
-                if (
-                    v["basis:family"] == "def2"
-                    and v["basis:def2"]
-                    in {"def2-SVP", "def2-TZVP", "def2-TZVPP", "def2-QZVPP"}
-                ) or (
-                    v["basis:family"] == "cc"
-                    and v["basis:cc"]
-                    in {
+            if use_auxc:
+                if v["basis:family"] == "def2":
+                    if v["basis:def2"] in {
+                        "def2-SVP",
+                        "def2-TZVP",
+                        "def2-TZVPP",
+                        "def2-QZVPP",
+                    }:
+                        auxbas.add(f"{v['basis:cc']}/C")
+                    else:
+                        auxbas.add("AutoAux")
+                elif v["basis:family"] == "cc":
+                    if v["basis:cc"] in {
                         f"{prefix}cc-pV{n}Z"
                         for prefix in {"", "aug-"}
                         for n in {"D", "T", "Q", 5, 6}
-                    }
-                ):
-                    auxbas.add(f"{v['basis:cc']}/C")
+                    }:
+                        auxbas.add(f"{v['basis:cc']}/C")
+                    else:
+                        auxbas.add("AutoAux")
                 else:
                     auxbas.add("AutoAux")
 
