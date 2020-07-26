@@ -140,18 +140,22 @@ class InputGUI(Frame):
                     "values": {
                         s: s.replace("+", " ")
                         for s in [
-                            "Energy",
-                            "Opt",
-                            "Freq",
-                            "Opt+Freq",
-                            # "Scan",
-                            "OptTS",
-                            "OptTS+Freq",
-                            "IRC",
-                            "NEB",
-                            "NEB+Freq",
-                            # "MD",
-                            # "NoIter",
+                            "Energy",  # can be done with XTB
+                            # "Energy+Gradient",  # can be done with XTB
+                            "Opt",  # can be done with XTB
+                            "Freq",  # can be done with XTB if numerical
+                            "Opt+Freq",  # can be done with XTB if numerical
+                            "OptTS",  # can be done with XTB
+                            "OptTS+Freq",  # can be done with XTB if numerical
+                            "IRC",  # can be done with XTB
+                            "OptTS+Freq+IRC",  # can be done with XTB if numerical
+                            "NEB",  # can be done with XTB
+                            "NEB+Freq",  # can be done with XTB if numerical
+                            "NEB+Freq+IRC",  # can be done with XTB if numerical
+                            # "Scan",  # can be done with XTB
+                            # "MD",  # can be done with XTB
+                            # "QM/MM",  # can be done with XTB
+                            # "NoIter",  # TODO(schneiderfelipe): should this exist?
                         ]
                     },
                 },
@@ -265,8 +269,9 @@ class InputGUI(Frame):
                     "default": True,
                     "switch": lambda k: k["theory"] == "CCSD",
                 },
-                "hamiltonian": {
+                "dftb:hamiltonian": {
                     "group": "level of theory",
+                    "text": "DFTB Hamiltonian",
                     "help": ("Which model Hamiltonian should be used."),
                     "values": {"GFN1-xTB": "XTB1", "GFN2-xTB": "XTB2"},
                     "default": "GFN2-xTB",
@@ -578,24 +583,100 @@ class InputGUI(Frame):
                 # important, in particular also parameters for cavity
                 # definition such as GEPOL, SES/SAS and atomic radii. But
                 # don't be too boring.
-                "solvent": {
+                "solvation": {
+                    "help": ("Whether implicit solvation should be used."),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "solvation:model": {
+                    "text": "Solvation model",
+                    "help": ("Which solvent model should be used."),
+                    "values": ["CPCM", "SMD"],
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB",
+                },
+                "solvation:cpcm": {
+                    "text": "Solvent",
                     "help": ("Which solvent should be considered."),
-                    "values": [
-                        "Acetone",  # also available in CPCM
-                        "Acetonitrile",  # also available in CPCM
-                        "Benzene",  # unavailable in CPCM
-                        "Dichloromethane",  # also available in CPCM
-                        "Chloroform",  # also available in CPCM
-                        "Carbon disulfide",  # unavailable in CPCM
-                        "Dimethylformamide",  # unavailable in GFN1-xTB, also available in CPCM
-                        "Dimethyl sulfoxide",  # also available in CPCM
-                        "Ether",  # unavailable in CPCM
-                        "Water",  # also available in CPCM
-                        "Methanol",  # also available in CPCM
-                        "n-Hexane",  # unavailable in GFN1-xTB, also available in CPCM
-                        "Tetrahydrofuran",  # also available in CPCM
-                        "Toluene",  # also available in CPCM
-                    ],
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Ethanol": "Ethanol",  # ε = 24.3
+                        "Ammonia": "Ammonia",  # ε = 22.4
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Pyridine": "Pyridine",  # ε = 12.5
+                        "1-Octanol": "Octanol",  # ε = 10.30
+                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "Chloroform",  # ε = 4.9
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "Tetrachloromethane": "CCl4",  # ε = 2.24
+                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
+                        "n-Hexane": "Hexane",  # ε = 1.89
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB"
+                    and k["solvation:model"] == "CPCM",
+                },
+                "solvation:smd": {
+                    "text": "Solvent",
+                    "help": ("Which solvent should be considered."),
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Nitromethane": "Nitromethane",  # ε = 35.87
+                        "Nitrobenzene": "Nitrobenzene",  # ε = 34.82
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Ethanol": "Ethanol",  # ε = 24.3
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Pyridine": "Pyridine",  # ε = 12.5
+                        "1-Octanol": "1-Octanol",  # ε = 10.30
+                        "Dichloromethane": "Dichloromethane",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "Chloroform",  # ε = 4.9
+                        "Diethyl ether": "Diethyl ether",  # ε = 4.3
+                        "Carbon disulfide": "Carbon disulfide",  # ε = 2.641
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "Tetrachloromethane": "CCl4",  # ε = 2.24
+                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
+                        "n-Hexane": "n-Hexane",  # ε = 1.89
+                        # TODO(schneiderfelipe): complete this list!
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB"
+                    and k["solvation:model"] == "SMD",
+                },
+                "solvation:gbsa": {
+                    "text": "Solvent",
+                    "help": ("Which solvent should be considered."),
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3, unavailable in GFN1-xTB
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "CHCl3",  # ε = 4.9
+                        "Diethyl ether": "Ether",  # ε = 4.3
+                        "Carbon disulfide": "CS2",  # ε = 2.641
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "n-Hexane": "n-Hexan",  # ε = 1.89, unavailable in GFN1-xTB
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] == "DFTB",
                 },
                 # TODO(schneiderfelipe): set analogous standards for COSX
                 # grids as well for when RIJCOSX is used.
@@ -642,7 +723,6 @@ class InputGUI(Frame):
                 #     "%maxcore 3000"
                 #
                 # which is new behavior.
-                # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
                 "ri:hf": {
                     "group": "acceleration",
                     "text": "Resolution of identity",
@@ -654,11 +734,11 @@ class InputGUI(Frame):
                         # None: "NoRI",  # HF: Exact J + exact K: no auxiliary functions and no grids needed.
                         # Hybrid DFT: Exact J + exact K + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
                         # "Auto": "Auto",
+                        #
+                        # RIJDX seems like a synonym for RIJONX
                         "RIJONX": "RIJONX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
                         # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
-                        "RIJDX": "RIJDX",  # HF: RIJ + exact K: <basis>/ J auxiliaries, no grids.
-                        # Hybrid DFT: RIJ + exact K + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
-                        "RIJK": "RI-JK",  # HF: RIJ + RIK = RIJK: <basis>/JK auxiliaries, no grids.
+                        "RIJK": "RIJK",  # HF: RIJ + RIK = RIJK: <basis>/JK auxiliaries, no grids.
                         # Hybrid DFT: RIJ + RIK + GGA-XC: <basis>/ JK auxiliaries, DFT grid controlled by the GRID keyword.
                         "RIJCOSX": "RIJCOSX",  # HF: RIJ + COSX: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword.
                         # Hybrid DFT: RIJ + COSX + GGA-XC: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword, DFT grid controlled by the GRID keyword.
@@ -672,22 +752,6 @@ class InputGUI(Frame):
                             and "Hybrid" in k["dft:family"]
                         )
                     ),
-                },
-                "ri:gga": {
-                    "group": "acceleration",
-                    "text": "Resolution of identity",
-                    "help": (
-                        "Whether a resolution of identity approximation "
-                        "should be used."
-                    ),
-                    "values": {
-                        # None: "NoRI",  # GGA DFT: Exact J + GGA-XC: no auxiliary functions needed, DFT grid controlled by the GRID keyword.
-                        # "Auto": "Auto",
-                        "RIJ": "RI"  # GGA DFT: RIJ + GGA-XC: <basis>/ J auxiliaries, DFT grid controlled by the GRID keyword.
-                    },
-                    "default": "RIJ",
-                    "switch": lambda k: k["ri"]
-                    and (k["theory"] == "DFT" and "GGA" in k["dft:family"]),
                 },
                 "nprocs": {
                     "group": "acceleration",
@@ -983,7 +1047,6 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
-                # TODO(schneiderfelipe): insert the NBO keyword
                 "nbo": {
                     "tab": "properties",
                     "text": "Perform NBO analysis",
@@ -996,10 +1059,33 @@ class InputGUI(Frame):
                 },
                 # TODO(schneiderfelipe): support output keywords such as
                 # PrintBasis and PrintMOs.
-                "output level": {
+                "output:level": {
                     "tab": "output",
+                    "text": "Output level",
                     "help": ("How much output should be created."),
-                    "values": {"Auto": None, "Large": "LargePrint"},
+                    "values": {
+                        # "Auto": None,
+                        "Mini": "MiniPrint",
+                        "Small": "SmallPrint",
+                        "Normal": "NormalPrint",
+                        "Large": "LargePrint",
+                    },
+                    "default": "Small",
+                },
+                "output:mos": {
+                    "tab": "output",
+                    "text": "Print molecular orbitals",
+                    "help": ("Whether molecular orbitals should be printed."),
+                    "widget": Checkbutton,
+                    "default": True,
+                },
+                "output:basis": {
+                    "tab": "output",
+                    "text": "Print basis sets",
+                    "help": ("Whether basis sets should be printed."),
+                    "widget": Checkbutton,
+                    "default": True,
+                    "switch": lambda k: k["output:level"] != "Large",
                 },
                 "wavefunction file": {
                     "tab": "output",
@@ -1036,7 +1122,6 @@ class InputGUI(Frame):
 
         self.update_widgets()
 
-    # TODO(schneiderfelipe): I think RIJDX is the same as RIJONX!
     def update_widgets(self, *args, **kwargs):
         """Update input content with currently selected options."""
         v = self.questions.get_values()
@@ -1061,8 +1146,8 @@ class InputGUI(Frame):
         ri = None
         if not v["ri"]:
             ri = "NoRI"
-        elif v["ri:gga"] and v["ri:gga"] != "Auto":
-            ri = v["ri:gga"]
+        elif v["theory"] == "DFT" and "gga" in v["dft:family"]:
+            ri = "RI"
         elif v["ri:hf"] and v["ri:hf"] != "Auto":
             ri = v["ri:hf"]
 
@@ -1071,12 +1156,12 @@ class InputGUI(Frame):
         use_auxc = False
         if ri in {"RI", "RIJONX", "RIJDX", "RIJCOSX"}:
             use_auxj = True
-        elif ri == "RI-JK":
+        elif ri == "RIJK":
             use_auxjk = True
 
         theory = v["theory"]
         if v["theory"] == "DFTB":
-            theory = v["hamiltonian"]
+            theory = v["dftb:hamiltonian"]
         elif v["theory"] == "DFT":
             theory = v[f"dft:{v['dft:family']}"]
 
@@ -1097,7 +1182,7 @@ class InputGUI(Frame):
         use_numfreq = False
         if (
             v["relativity"]
-            or ri == "RI-JK"
+            or ri == "RIJK"
             or (
                 v["theory"] == "DFT"
                 and (
@@ -1115,7 +1200,8 @@ class InputGUI(Frame):
         inp["!"].append(theory)
         inp["!"].append(v["dispersion"])
         inp["!"].append(v["relativity"])
-        inp["!"].append(v[f"basis:{v['basis:family']}"])
+        if v["theory"] != "DFTB":
+            inp["!"].append(v[f"basis:{v['basis:family']}"])
 
         if ri != "NoRI":
             auxbas = set()
@@ -1124,6 +1210,10 @@ class InputGUI(Frame):
                     if not v["relativity"]:
                         auxbas.add("def2/J")
                     else:
+                        # TODO(schneiderfelipe): this will move from here as
+                        # the special basis for relativistic calculations get
+                        # automatically specified (currently we accept e.g.
+                        # def2-TZVP as is, which is not wanted).
                         auxbas.add("SARC/J")
                 else:
                     auxbas.add("AutoAux")
@@ -1186,6 +1276,19 @@ class InputGUI(Frame):
         if task != "Energy":
             inp["!"].append(task)
 
+        if v["solvation"]:
+            if v["theory"] == "DFTB":
+                solvation_model = "gbsa"
+            else:
+                solvation_model = v["solvation:model"].lower()
+            solvent = v[f"solvation:{solvation_model}"].lower()
+
+            if solvation_model == "cpcm":
+                inp["!"].append(f"CPCM({solvent})")
+            else:
+                inp["cpcm"].append("smd true")
+                inp["cpcm"].append(f"smdsolvent '{solvent}'")
+
         if v["numerical:quality"]:
             if v["numerical:quality"] > 3:
                 if "Opt" in task:
@@ -1198,7 +1301,16 @@ class InputGUI(Frame):
                 # TODO(schneiderfelipe): this should be corrected
                 inp["!"].append(f"GridX{v['numerical:quality']}")
 
-        inp["!"].append(v["output level"])
+        if v["output:level"] != "SmallPrint":
+            inp["!"].append(v["output:level"])
+        if v["output:basis"] and v["output:level"] != "LargePrint":
+            inp["!"].append("PrintBasis")
+        if v["output:mos"] and v["output:level"] != "LargePrint":
+            inp["!"].append("PrintMOs")
+        elif not v["output:mos"] and v["output:level"] == "LargePrint":
+            inp["!"].append("NoPrintMOs")
+        if v["nbo"]:
+            inp["!"].append("NBO")
 
         if v["short description"]:
             inp["#"].append(f"{v['short description']}")
