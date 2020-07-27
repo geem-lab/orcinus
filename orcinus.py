@@ -254,7 +254,7 @@ class InputGUI(Frame):
                 },
                 "dft:family": {
                     "group": "level of theory",
-                    "text": "Functional family",
+                    "text": "Density functional family",
                     "help": (
                         "Which density functional family should be " "used."
                     ),
@@ -276,7 +276,7 @@ class InputGUI(Frame):
                 },
                 "dft:lda": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": ["HFS", "VWN5", "VWN3", "PWLDA"],
                     "default": "VWN5",
@@ -285,7 +285,7 @@ class InputGUI(Frame):
                 },
                 "dft:gga": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": [
                         "BP86",
@@ -308,7 +308,7 @@ class InputGUI(Frame):
                 },
                 "dft:hybrid": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": [
                         "B1LYP",
@@ -332,7 +332,7 @@ class InputGUI(Frame):
                 },
                 "dft:meta-gga": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": [
                         "TPSS",
@@ -347,7 +347,7 @@ class InputGUI(Frame):
                 },
                 "dft:meta-hybrid": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": ["TPSSh", "TPSS0", "M06", "M062X"],
                     "default": "TPSSh",
@@ -356,7 +356,7 @@ class InputGUI(Frame):
                 },
                 "dft:rs-hybrid": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": [
                         "wB97",
@@ -374,7 +374,7 @@ class InputGUI(Frame):
                 },
                 "dft:double-hybrid": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": [
                         "B2PLYP",
@@ -396,7 +396,7 @@ class InputGUI(Frame):
                 },
                 "dft:rs-double-hybrid": {
                     "group": "level of theory",
-                    "text": "Exchange-correlation functional",
+                    "text": "Density functional",
                     "help": ("Which density functional should be used."),
                     "values": ["wB2PLYP", "wB2GP-PLYP"],
                     "switch": lambda k: k["theory"] == "DFT"
@@ -413,47 +413,20 @@ class InputGUI(Frame):
                     "default": "D4",
                     "switch": lambda k: k["theory"] == "DFT",
                 },
-                "relativity": {
-                    "group": "level of theory",
-                    "text": "Scalar relativistic approximation",
-                    "help": (
-                        "Which scalar relativistic approximation should be "
-                        "used."
-                    ),
-                    "values": [None, "DKH", "ZORA"],
-                    "switch": lambda k: k["theory"]
-                    in {"HF", "DFT", "MP2", "CCSD"},
-                },
-                # TODO(schneiderfelipe): the 1-center approximation option is
-                # relevant to calculations using ZORA.
-                "spin-orbit coupling": {
-                    "group": "level of theory",
-                    "help": (
-                        "Whether spin-orbit coupling should be taken into "
-                        "account."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
                 # TODO(schneiderfelipe): create a details group for SCF
                 # convergence things such as solvers (e.g. DIIS, KDIIS,
                 # MORead), initial guesses (e.g, PModel, Hueckel), etc.. It
                 # is also nice to allow a stability analysis of the SCF
                 # wavefunction. In the future I also want to implement
                 # options for rotating orbitals.
-                # TODO(schneiderfelipe): give some support for diffuse
-                # functions, specially minimally augmented. For that, some
-                # nice options for avoiding linear dependency problems are
-                # required in a special group for SCF convergence.
-                # TODO(schneiderfelipe): give support for cc basis set family
-                # (cc-pVTZ, etc.).
+                # TODO(schneiderfelipe): some nice options for avoiding linear
+                # dependency problems are required in a special group for SCF
+                # convergence.
                 # TODO(schneiderfelipe): give support for other families such
                 # as ano (they also have aug-cc, ma-def2 and saug-ano/aug-ano).
                 # TODO(schneiderfelipe): extrapolation techniques are
                 # interesting for single point calculations with DLPNO-CC
                 # methods.
-                # TODO(schneiderfelipe): switch to basis sets consistent with
-                # relativistic approximations.
                 "basis:family": {
                     "group": "level of theory",
                     "text": "Basis set family",
@@ -535,132 +508,6 @@ class InputGUI(Frame):
                 # properties, etc.], etc.). Also implement a forceful AutoAux
                 # flag, which is sometimes useful for checking auxiliary basis
                 # set dependencies.
-                "ecp": {
-                    "group": "level of theory",
-                    "text": "Effective core potentials",
-                    "help": (
-                        "Whether effective core potentials should be used. "
-                        "NOT IMPLEMENTED."
-                    ),
-                    # TODO(schneiderfelipe): this requires a good
-                    # implementation, which I think can improve costly
-                    # calculations with heavy atoms. I also want to ensure
-                    # nice compatibility between basis sets and ECPs.
-                    # TODO(schneiderfelipe): this is a case where "Auto" makes
-                    # sense, since leaving it unspecified might trigger the
-                    # default set of ECPs as of ORCA 4+. Whenever this is the
-                    # case, say it in the help.
-                    "values": [None, "def2-ECP"],
-                    "default": "def2-ECP",
-                    "switch": lambda k: k["theory"]
-                    in {"HF", "DFT", "MP2", "CCSD"},
-                },
-                # TODO(schneiderfelipe): support solvation models (GBSA for
-                # XTB, CPCM and SMD). Cavity construction in continuum
-                # solvation is also something that oftentimes produce
-                # imaginary frequencies. As such, options on that are also
-                # necessary.
-                # TODO(schneiderfelipe): continuum solvation models are very
-                # important, in particular also parameters for cavity
-                # definition such as GEPOL, SES/SAS and atomic radii. But
-                # don't be too boring.
-                "solvation": {
-                    "help": ("Whether implicit solvation should be used."),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                "solvation:model": {
-                    "text": "Solvation model",
-                    "help": ("Which solvent model should be used."),
-                    "values": ["CPCM", "SMD"],
-                    "switch": lambda k: k["solvation"]
-                    and k["theory"] != "DFTB",
-                },
-                "solvation:cpcm": {
-                    "text": "Solvent",
-                    "help": ("Which solvent should be considered."),
-                    "values": {
-                        "Water": "Water",  # ε = 80.4
-                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
-                        "Dimethylformamide": "DMF",  # ε = 38.3
-                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
-                        "Methanol": "Methanol",  # ε = 32.63
-                        "Ethanol": "Ethanol",  # ε = 24.3
-                        "Ammonia": "Ammonia",  # ε = 22.4
-                        "Acetone": "Acetone",  # ε = 20.7
-                        "Pyridine": "Pyridine",  # ε = 12.5
-                        "1-Octanol": "Octanol",  # ε = 10.30
-                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
-                        "Tetrahydrofuran": "THF",  # ε = 7.25
-                        "Chloroform": "Chloroform",  # ε = 4.9
-                        "Toluene": "Toluene",  # ε = 2.4
-                        "Benzene": "Benzene",  # ε = 2.3
-                        "Tetrachloromethane": "CCl4",  # ε = 2.24
-                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
-                        "n-Hexane": "Hexane",  # ε = 1.89
-                    },
-                    "default": "Water",
-                    "switch": lambda k: k["solvation"]
-                    and k["theory"] != "DFTB"
-                    and k["solvation:model"] == "CPCM",
-                },
-                "solvation:smd": {
-                    "text": "Solvent",
-                    "help": ("Which solvent should be considered."),
-                    "values": {
-                        "Water": "Water",  # ε = 80.4
-                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
-                        "Dimethylformamide": "DMF",  # ε = 38.3
-                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
-                        "Nitromethane": "Nitromethane",  # ε = 35.87
-                        "Nitrobenzene": "Nitrobenzene",  # ε = 34.82
-                        "Methanol": "Methanol",  # ε = 32.63
-                        "Ethanol": "Ethanol",  # ε = 24.3
-                        "Acetone": "Acetone",  # ε = 20.7
-                        "Pyridine": "Pyridine",  # ε = 12.5
-                        "1-Octanol": "1-Octanol",  # ε = 10.30
-                        "Dichloromethane": "Dichloromethane",  # ε = 9.08
-                        "Tetrahydrofuran": "THF",  # ε = 7.25
-                        "Chloroform": "Chloroform",  # ε = 4.9
-                        "Diethyl ether": "Diethyl ether",  # ε = 4.3
-                        "Carbon disulfide": "Carbon disulfide",  # ε = 2.641
-                        "Toluene": "Toluene",  # ε = 2.4
-                        "Benzene": "Benzene",  # ε = 2.3
-                        "Tetrachloromethane": "CCl4",  # ε = 2.24
-                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
-                        "n-Hexane": "n-Hexane",  # ε = 1.89
-                        # TODO(schneiderfelipe): complete this list!
-                    },
-                    "default": "Water",
-                    "switch": lambda k: k["solvation"]
-                    and k["theory"] != "DFTB"
-                    and k["solvation:model"] == "SMD",
-                },
-                "solvation:gbsa": {
-                    "text": "Solvent",
-                    "help": ("Which solvent should be considered."),
-                    "values": {
-                        "Water": "Water",  # ε = 80.4
-                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
-                        "Dimethylformamide": "DMF",  # ε = 38.3, unavailable in GFN1-xTB
-                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
-                        "Methanol": "Methanol",  # ε = 32.63
-                        "Acetone": "Acetone",  # ε = 20.7
-                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
-                        "Tetrahydrofuran": "THF",  # ε = 7.25
-                        "Chloroform": "CHCl3",  # ε = 4.9
-                        "Diethyl ether": "Ether",  # ε = 4.3
-                        "Carbon disulfide": "CS2",  # ε = 2.641
-                        "Toluene": "Toluene",  # ε = 2.4
-                        "Benzene": "Benzene",  # ε = 2.3
-                        "n-Hexane": "n-Hexan",  # ε = 1.89, unavailable in GFN1-xTB
-                    },
-                    "default": "Water",
-                    "switch": lambda k: k["solvation"]
-                    and k["theory"] == "DFTB",
-                },
-                # TODO(schneiderfelipe): set analogous standards for COSX
-                # grids as well for when RIJCOSX is used.
                 "numerical:quality": {
                     "text": "Numerical quality",
                     "help": (
@@ -774,17 +621,153 @@ class InputGUI(Frame):
                     "values": np.arange(6000, 18000, 500),
                     "default": 11000,
                 },
-                # TODO(schneiderfelipe): support setting maximum memory
-                # requirements. This requires a one-liner starting with %, so
-                # we need to teach ORCAInput to understand accept
-                #
-                #     inp["%maxcore"].append(3000)
-                #
-                # as
-                #
-                #     "%maxcore 3000"
-                #
-                # which is new behavior.
+                # TODO(schneiderfelipe): cavity construction in continuum
+                # solvation is also something that oftentimes produce
+                # imaginary frequencies. As such, options on that are also
+                # necessary.
+                # TODO(schneiderfelipe): continuum solvation models are very
+                # important, in particular also parameters for cavity
+                # definition such as GEPOL, SES/SAS and atomic radii. But
+                # don't be too boring.
+                "solvation": {
+                    "help": ("Whether implicit solvation should be used."),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "solvation:model": {
+                    "text": "Solvation model",
+                    "help": ("Which solvent model should be used."),
+                    "values": ["CPCM", "SMD"],
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB",
+                },
+                "solvation:cpcm": {
+                    "text": "Solvent",
+                    "help": ("Which solvent should be considered."),
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Ethanol": "Ethanol",  # ε = 24.3
+                        "Ammonia": "Ammonia",  # ε = 22.4
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Pyridine": "Pyridine",  # ε = 12.5
+                        "1-Octanol": "Octanol",  # ε = 10.30
+                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "Chloroform",  # ε = 4.9
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "Tetrachloromethane": "CCl4",  # ε = 2.24
+                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
+                        "n-Hexane": "Hexane",  # ε = 1.89
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB"
+                    and k["solvation:model"] == "CPCM",
+                },
+                "solvation:smd": {
+                    "text": "Solvent",
+                    "help": ("Which solvent should be considered."),
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Nitromethane": "Nitromethane",  # ε = 35.87
+                        "Nitrobenzene": "Nitrobenzene",  # ε = 34.82
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Ethanol": "Ethanol",  # ε = 24.3
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Pyridine": "Pyridine",  # ε = 12.5
+                        "1-Octanol": "1-Octanol",  # ε = 10.30
+                        "Dichloromethane": "Dichloromethane",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "Chloroform",  # ε = 4.9
+                        "Diethyl ether": "Diethyl ether",  # ε = 4.3
+                        "Carbon disulfide": "Carbon disulfide",  # ε = 2.641
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "Tetrachloromethane": "CCl4",  # ε = 2.24
+                        "Cyclohexane": "Cyclohexane",  # ε = 2.02
+                        "n-Hexane": "n-Hexane",  # ε = 1.89
+                        # TODO(schneiderfelipe): complete this list!
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] != "DFTB"
+                    and k["solvation:model"] == "SMD",
+                },
+                "solvation:gbsa": {
+                    "text": "Solvent",
+                    "help": ("Which solvent should be considered."),
+                    "values": {
+                        "Water": "Water",  # ε = 80.4
+                        "Dimethyl sulfoxide": "DMSO",  # ε = 47.2
+                        "Dimethylformamide": "DMF",  # ε = 38.3, unavailable in GFN1-xTB
+                        "Acetonitrile": "Acetonitrile",  # ε = 36.6
+                        "Methanol": "Methanol",  # ε = 32.63
+                        "Acetone": "Acetone",  # ε = 20.7
+                        "Dichloromethane": "CH2Cl2",  # ε = 9.08
+                        "Tetrahydrofuran": "THF",  # ε = 7.25
+                        "Chloroform": "CHCl3",  # ε = 4.9
+                        "Diethyl ether": "Ether",  # ε = 4.3
+                        "Carbon disulfide": "CS2",  # ε = 2.641
+                        "Toluene": "Toluene",  # ε = 2.4
+                        "Benzene": "Benzene",  # ε = 2.3
+                        "n-Hexane": "n-Hexan",  # ε = 1.89, unavailable in GFN1-xTB
+                    },
+                    "default": "Water",
+                    "switch": lambda k: k["solvation"]
+                    and k["theory"] == "DFTB",
+                },
+                # TODO(schneiderfelipe): switch to basis sets consistent with
+                # relativistic approximations.
+                "relativity": {
+                    # "group": "level of theory",
+                    "text": "Scalar relativistic approximation",
+                    "help": (
+                        "Which scalar relativistic approximation should be "
+                        "used."
+                    ),
+                    "values": [None, "DKH", "ZORA"],
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
+                },
+                # TODO(schneiderfelipe): the 1-center approximation option is
+                # relevant to calculations using ZORA.
+                "spin-orbit coupling": {
+                    # "group": "level of theory",
+                    "help": (
+                        "Whether spin-orbit coupling should be taken into "
+                        "account."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "ecp": {
+                    # "group": "level of theory",
+                    "text": "Effective core potentials",
+                    "help": (
+                        "Whether effective core potentials should be used. "
+                        "NOT IMPLEMENTED."
+                    ),
+                    # TODO(schneiderfelipe): this requires a good
+                    # implementation, which I think can improve costly
+                    # calculations with heavy atoms. I also want to ensure
+                    # nice compatibility between basis sets and ECPs.
+                    # TODO(schneiderfelipe): this is a case where "Auto" makes
+                    # sense, since leaving it unspecified might trigger the
+                    # default set of ECPs as of ORCA 4+. Whenever this is the
+                    # case, say it in the help.
+                    "values": [None, "def2-ECP"],
+                    "default": "def2-ECP",
+                    "switch": lambda k: k["theory"]
+                    in {"HF", "DFT", "MP2", "CCSD"},
+                },
                 "scf:maxiter": {
                     "tab": "details",
                     "group": "self consistent field",
@@ -1143,7 +1126,7 @@ class InputGUI(Frame):
         )
 
         self.rowconfigure(0, weight=1, minsize=3 * self.column_minsize)
-        self.columnconfigure(0, weight=1, minsize=3 * self.column_minsize)
+        self.columnconfigure(0, weight=1, minsize=4 * self.column_minsize)
 
         self.clear_button.bind("<Button-1>", self.clear)
         self.save_button.bind("<Button-1>", self.save)
