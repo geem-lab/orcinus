@@ -17,10 +17,10 @@ from tkinter.ttk import Notebook
 
 import numpy as np
 
-from tooltip import create_tooltip
+from orcinus.gui.tooltip import create_tooltip
 
 # TODO(schneiderfelipe): this will change in the future.
-DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+DATA_DIR = os.path.expanduser("~")
 
 
 class Questionnaire(Frame):
@@ -79,12 +79,12 @@ class Questionnaire(Frame):
         init_values = {
             name: desc["default"] for name, desc in self.fields.items()
         }
+        state_path = os.path.join(DATA_DIR, self.state_filename)
         if (
             not ignore_state
             and self.state_filename
-            and os.path.isfile(self.state_filename)
+            and os.path.isfile(state_path)
         ):
-            state_path = os.path.join(DATA_DIR, self.state_filename)
             with open(state_path, "rb") as f:
                 state = pickle.load(f)
             init_values.update(state)

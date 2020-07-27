@@ -1,12 +1,7 @@
 #!/usr/bin/python3
 
-"""Orcinus orca.
+"""Utilities for the graphical user interface."""
 
-Orcinus orca is a simple graphical user interface (GUI) for the ORCA quantum
-chemistry package.
-"""
-
-from collections.abc import MutableMapping
 from tkinter import filedialog
 from tkinter import Spinbox
 from tkinter import Text
@@ -19,71 +14,30 @@ from tkinter.ttk import Style
 
 import numpy as np
 
-from questionnaire import Questionnaire
+from orcinus.gui.questionnaire import Questionnaire
+from orcinus import ORCAInput
 
 
-class ORCAInput(MutableMapping):
-    """A simple abstraction of an ORCA input file."""
+def main():
+    """Start the graphical user interface."""
+    main_window = Tk()
+    # TODO(schneiderfelipe): we need an icon.
 
-    def __init__(self, data=None):
-        """Construct object."""
-        self._mapping = {}
-        if data is not None:
-            self.update(data)
+    style = Style()
+    if style.theme_use() == "default":
+        style.theme_use("clam")
 
-    def __repr__(self):
-        """Return string representation of self."""
-        return f"{type(self).__name__}({self._mapping})"
+    main_window.title(__doc__.split("\n", 1)[0].strip().strip("."))
+    input_frame = InputGUI(main_window)
+    input_frame.pack(fill="both", expand=True)
 
-    def generate(self):
-        """Generate input content."""
-        inliners = ["!", "maxcore", "*"]
-        lines = []
+    def on_window_close():
+        """Proceed to close window."""
+        input_frame.store_widgets()
+        main_window.destroy()
 
-        for item in self["#"]:
-            lines.append(f"# {item}")
-
-        for key in inliners:
-            tag = key
-            if key == "*":
-                tag = f"\n{key}"
-            elif key == "maxcore":
-                tag = f"%{key}"
-            lines.append(
-                f"{tag} {' '.join([str(v) for v in self[key] if v is not None])}"
-            )
-
-        for key, value in self.items():
-            if not isinstance(value, list) or key in inliners or key == "#":
-                continue
-            lines.append(f"\n%{key}")
-            for item in value:
-                lines.append(f" {item}")
-            lines.append("end")
-
-        return "\n".join(lines)
-
-    def __getitem__(self, key):
-        """Get item at key."""
-        if key not in self._mapping:
-            self._mapping[key] = []
-        return self._mapping[key]
-
-    def __setitem__(self, key, value):
-        """Set item at key to value."""
-        self._mapping[key] = value
-
-    def __delitem__(self, key):
-        """Delete item at key."""
-        del self._mapping[key]
-
-    def __iter__(self):
-        """Iterate keys."""
-        return iter(self._mapping)
-
-    def __len__(self):
-        """Return number of keys."""
-        return len(self._mapping)
+    main_window.protocol("WM_DELETE_WINDOW", on_window_close)
+    main_window.mainloop()
 
 
 class InputGUI(Frame):
@@ -125,7 +79,7 @@ class InputGUI(Frame):
         self.save_button = Button(self, text="Save")
         self.questions = Questionnaire(
             self,
-            state_filename="questions.pickle",
+            state_filename=".orcinus_questions.pickle",
             padx=self.padx,
             pady=self.pady,
             column_minsize=self.column_minsize,
@@ -1385,24 +1339,3 @@ class InputGUI(Frame):
 
         self.text.delete("1.0", "end")
         self.text.insert("1.0", inp.generate())
-
-
-if __name__ == "__main__":
-    main_window = Tk()
-    # TODO(schneiderfelipe): we need an icon.
-
-    style = Style()
-    if style.theme_use() == "default":
-        style.theme_use("clam")
-
-    main_window.title(__doc__.split("\n", 1)[0].strip().strip("."))
-    input_frame = InputGUI(main_window)
-    input_frame.pack(fill="both", expand=True)
-
-    def on_window_close():
-        """Proceed to close window."""
-        input_frame.store_widgets()
-        main_window.destroy()
-
-    main_window.protocol("WM_DELETE_WINDOW", on_window_close)
-    main_window.mainloop()
