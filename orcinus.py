@@ -37,17 +37,24 @@ class ORCAInput(MutableMapping):
 
     def generate(self):
         """Generate input content."""
+        inliners = ["!", "maxcore", "*"]
         lines = []
+
         for item in self["#"]:
             lines.append(f"# {item}")
-        lines.append(
-            f"! {' '.join([str(v) for v in self['!'] if v is not None])}"
-        )
-        lines.append(
-            f"\n* {' '.join([str(v) for v in self['*'] if v is not None])}"
-        )
+
+        for key in inliners:
+            tag = key
+            if key == "*":
+                tag = f"\n{key}"
+            elif key == "maxcore":
+                tag = f"%{key}"
+            lines.append(
+                f"{tag} {' '.join([str(v) for v in self[key] if v is not None])}"
+            )
+
         for key, value in self.items():
-            if not isinstance(value, list) or key in {"#", "!", "*"}:
+            if not isinstance(value, list) or key in inliners or key == "#":
                 continue
             lines.append(f"\n%{key}")
             for item in value:
@@ -159,6 +166,8 @@ class InputGUI(Frame):
                         ]
                     },
                 },
+                # TODO(schneiderfelipe): implement access to Z_solver and
+                # Z_maxiter in a details group about frequency calculations.
                 "charge": {
                     "group": "basic information",
                     "text": "Total charge",
@@ -661,40 +670,20 @@ class InputGUI(Frame):
                         "might need more than that."
                     ),
                     "values": {
-                        "Auto": None,
-                        "Normal": 3,
-                        "Good": 4,
-                        "Very Good": 5,
-                        "Excellent": 6,
+                        "Poor": -1,
+                        "Fair": 0,
+                        "Good": 1,
+                        "Very Good": 2,
+                        "Excellent": 3,
+                        "Extreme": 4,
                     },
-                    "default": "Good",
+                    "default": "Fair",
                     "switch": lambda k: k["theory"]
                     in {"HF", "DFT", "MP2", "CCSD"},
                 },
-                # TODO(schneiderfelipe): choose resolution of identity as a
-                # on/off tick and pre-select the best approximations in each
-                # case.
                 # TODO(schneiderfelipe): the acceleration section must contain
                 # only things that make calculations fast without changing
                 # accuracy.
-                # TODO(schneiderfelipe): support setting maximum memory
-                # requirements. I prefer to set it to total memory and
-                # calculate the value per core, as this is the relevant
-                # information (i.e., how much the computer has). This is
-                # eligible for the acceleration section because it is related
-                # to the number of processors and because having a good about
-                # of memory avoids too many batches in many parts of the
-                # code, thus accelerating calculations. This requires a
-                # one-liner starting with %, so we need to teach ORCAInput to
-                # understand accept
-                #
-                #     inp["%maxcore"].append(3000)
-                #
-                # as
-                #
-                #     "%maxcore 3000"
-                #
-                # which is new behavior.
                 "dlpno": {
                     "group": "acceleration",
                     "text": "DLPNO",
@@ -775,7 +764,27 @@ class InputGUI(Frame):
                     "help": ("Number of parallel processes to use."),
                     "widget": Spinbox,
                     "values": [2 ** n for n in range(6)],
+                    "default": 8,
                 },
+                "memory": {
+                    "group": "acceleration",
+                    "text": "Total memory",
+                    "help": ("How much memory to use in total."),
+                    "widget": Spinbox,
+                    "values": np.arange(6000, 18000, 500),
+                    "default": 11000,
+                },
+                # TODO(schneiderfelipe): support setting maximum memory
+                # requirements. This requires a one-liner starting with %, so
+                # we need to teach ORCAInput to understand accept
+                #
+                #     inp["%maxcore"].append(3000)
+                #
+                # as
+                #
+                #     "%maxcore 3000"
+                #
+                # which is new behavior.
                 "scf:maxiter": {
                     "tab": "details",
                     "group": "self consistent field",
@@ -908,7 +917,7 @@ class InputGUI(Frame):
                     "text": "Frequency scaling",
                     "help": ("Number to multiply all your frequency values."),
                     "widget": Spinbox,
-                    "values": list(np.arange(0.95, 1.05, 0.01)),
+                    "values": np.arange(0.95, 1.05, 0.01),
                     "default": 1.0,
                 },
                 "nuclear model": {
@@ -1073,6 +1082,11 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
+                # TODO(schneiderfelipe): support RAMAN/IR and related stuff.
+                # Raman requires polazirabilities ("%elprop Polar 1 end") and
+                # may only work with numerical frequencies (please check). See
+                # <https://sites.google.com/site/orcainputlibrary/vibrational-frequencies>.
+                #
                 # TODO(schneiderfelipe): support output keywords such as
                 # PrintBasis and PrintMOs.
                 "output:level": {
@@ -1292,6 +1306,8 @@ class InputGUI(Frame):
         if task != "Energy":
             inp["!"].append(task)
 
+        inp["maxcore"].append(int(v["memory"] / v["nprocs"]))
+
         if v["solvation"]:
             if v["theory"] == "DFTB":
                 solvation_model = "gbsa"
@@ -1306,16 +1322,49 @@ class InputGUI(Frame):
                 inp["cpcm"].append(f"smdsolvent '{solvent}'")
 
         if v["numerical:quality"]:
-            if v["numerical:quality"] > 3:
-                if "Opt" in task:
-                    inp["!"].append("TightOpt")
-                inp["!"].append("TightSCF")
-            if v["theory"] == "DFT":
-                inp["!"].append(f"Grid{v['numerical:quality']}")
-                inp["!"].append(f"FinalGrid{v['numerical:quality'] + 1}")
-            if ri == "RIJCOSX":
-                # TODO(schneiderfelipe): this should be corrected
-                inp["!"].append(f"GridX{v['numerical:quality']}")
+            if v["numerical:quality"] > 0 and "Opt" in task and "Freq" in task:
+                inp["!"].append("TightOpt")
+            inp["!"].append(
+                {
+                    -1: "LooseSCF",
+                    1: "TightSCF",
+                    2: "TightSCF",
+                    3: "VeryTightSCF",
+                    4: "ExtremeSCF",
+                }[v["numerical:quality"]]
+            )
+
+        if v["theory"] == "DFT":
+            n_grid = v["numerical:quality"] + 3
+            # TODO(schneiderfelipe): TDDFT, NOCV and other calculations
+            # calculations require the following:
+            #
+            #     n_grid += 1
+            #
+            # (i.e., at least Grid5 to be good).
+            inp["!"].append(f"Grid{n_grid}")
+            if n_grid > 6:
+                inp["!"].append("NoFinalGrid")
+            else:
+                inp["!"].append(f"FinalGrid{n_grid + 1}")
+        if ri == "RIJCOSX":
+            n_gridx = v["numerical:quality"] + 3
+            # TODO(schneiderfelipe): TDDFT calculations probably require
+            # the following:
+            #
+            #     n_gridx += 1
+            #
+            # (i.e., at least GridX5 to be good).
+            # TODO(schneiderfelipe): GIAO/NMR and EPR calculations may require
+            # the following:
+            #
+            #     n_gridx += 2
+            #
+            # (i.e., at least GridX6 to be good).
+            if "Opt" in task and "DLPNO-MP2" in theory:
+                n_gridx += 3
+            if n_gridx > 3:
+                inp["!"].append(f"GridX{min(n_gridx, 9)}")
 
         if v["output:level"] != "SmallPrint":
             inp["!"].append(v["output:level"])

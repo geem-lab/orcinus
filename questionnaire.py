@@ -210,7 +210,7 @@ class Questionnaire(Frame):
                         f"could not infer default, please specify: {desc}"
                     )
 
-            if desc["type"] is int:
+            if desc["type"] is int or desc["type"] is np.int64:
                 self.variable[name] = IntVar(self)
             elif desc["type"] is bool:
                 self.variable[name] = BooleanVar(self)
@@ -221,7 +221,7 @@ class Questionnaire(Frame):
                 if "values" in desc:
                     values = [np.round(v, 2) for v in values]
             else:
-                raise ValueError(f"unknown type '{desc['type']}'")
+                raise ValueError(f"unknown type '{desc['type']}' for '{name}'")
 
             if "text" in desc:
                 text = desc["text"]
