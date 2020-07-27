@@ -219,45 +219,11 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     # TODO(schneiderfelipe): I am assuming FrozenCore is always
                     # default.
+                    # TODO(schneiderfelipe): the def2/C, etc. basis sets were
+                    # optimized for FrozenCore calculations. As such,
+                    # NoFrozenCore must enforce AutoAux!
                     "values": {True: None, False: "NoFrozenCore"},
                     "switch": lambda k: k["theory"] in {"MP2", "CCSD"},
-                },
-                "ri": {
-                    "group": "level of theory",
-                    "text": "Resolution of identity",
-                    "help": (
-                        "Whether the resolution of identity approximation "
-                        "should be used."
-                    ),
-                    "widget": Checkbutton,
-                    "default": True,
-                    "switch": lambda k: (
-                        k["theory"] in {"HF", "MP2", "CCSD"}
-                        or (
-                            k["theory"] == "DFT"
-                            and (
-                                "GGA" in k["dft:family"]
-                                or "Hybrid" in k["dft:family"]
-                            )
-                        )
-                    ),
-                },
-                "dlpno": {
-                    "group": "level of theory",
-                    "text": "DLPNO",
-                    "help": (
-                        "Whether the domain-based local pair natural "
-                        "orbital approximation should be used."
-                    ),
-                    "widget": Checkbutton,
-                    "default": True,
-                    "switch": lambda k: (
-                        k["theory"] in {"MP2", "CCSD"}
-                        or (
-                            k["theory"] == "DFT"
-                            and "Double-Hybrid" in k["dft:family"]
-                        )
-                    ),
                 },
                 "triples correction": {
                     "group": "level of theory",
@@ -554,6 +520,12 @@ class InputGUI(Frame):
                     "default": "TZP",
                     "switch": lambda k: k["basis:family"] == "Pople",
                 },
+                # TODO(schneiderfelipe): implement a details group for basis
+                # sets and implement basis set decontraction there (e.g.,
+                # DecontractAux [useful for reducing RI error for core
+                # properties, etc.], etc.). Also implement a forceful AutoAux
+                # flag, which is sometimes useful for checking auxiliary basis
+                # set dependencies.
                 "ecp": {
                     "group": "level of theory",
                     "text": "Effective core potentials",
@@ -723,6 +695,50 @@ class InputGUI(Frame):
                 #     "%maxcore 3000"
                 #
                 # which is new behavior.
+                "dlpno": {
+                    "group": "acceleration",
+                    "text": "DLPNO",
+                    "help": (
+                        "Whether the domain-based local pair natural "
+                        "orbital approximation should be used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    "switch": lambda k: (
+                        k["theory"] in {"MP2", "CCSD"}
+                        or (
+                            k["theory"] == "DFT"
+                            and "Double-Hybrid" in k["dft:family"]
+                        )
+                    ),
+                },
+                "ri": {
+                    "group": "acceleration",
+                    "text": "Resolution of identity",
+                    "help": (
+                        "Whether the resolution of identity approximation "
+                        "should be used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    "switch": lambda k: (
+                        k["theory"] == "HF"
+                        or (
+                            k["theory"] in {"MP2", "CCSD"} and not k["dlpno"]
+                        )  # TODO(schneiderfelipe): this should probably also include double-hybrids
+                        or (
+                            k["theory"] == "DFT"
+                            and (
+                                "GGA" in k["dft:family"]
+                                or "Hybrid" in k["dft:family"]
+                            )
+                        )
+                    ),
+                },
+                # "For HF, the use of RI-JK with AutoAux is beneficial only for
+                # fairly small systems (less than 200 electrons) with large
+                # basis sets (at least triple-ζ quality)."
+                # (doi:10.1021/acs.jctc.6b01041).
                 "ri:hf": {
                     "group": "acceleration",
                     "text": "Resolution of identity",
@@ -744,7 +760,7 @@ class InputGUI(Frame):
                         # Hybrid DFT: RIJ + COSX + GGA-XC: <basis>/ J auxiliaries, COSX grid controlled by the GRIDX keyword, DFT grid controlled by the GRID keyword.
                     },
                     "default": "RIJCOSX",
-                    "switch": lambda k: k["ri"]
+                    "switch": lambda k: (k["ri"] or k["dlpno"])
                     and (
                         k["theory"] in {"HF", "MP2", "CCSD"}
                         or (
@@ -1144,7 +1160,7 @@ class InputGUI(Frame):
         #         inp["!"].append("RHF")
 
         ri = None
-        if not v["ri"]:
+        if not v["ri"] and not v["dlpno"]:
             ri = "NoRI"
         elif v["theory"] == "DFT" and "gga" in v["dft:family"]:
             ri = "RI"
@@ -1203,6 +1219,7 @@ class InputGUI(Frame):
         if v["theory"] != "DFTB":
             inp["!"].append(v[f"basis:{v['basis:family']}"])
 
+        inp["!"].append(ri)
         if ri != "NoRI":
             auxbas = set()
             if use_auxj:
@@ -1260,7 +1277,6 @@ class InputGUI(Frame):
                 inp["!"].append("AutoAux")
             else:
                 inp["!"].extend(sorted(auxbas))
-        inp["!"].append(ri)
 
         if v["theory"] in {"MP2", "CCSD"}:
             inp["!"].append(v["frozen core"])
