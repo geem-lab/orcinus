@@ -119,7 +119,13 @@ class InputGUI(Frame):
                             # "NoIter",  # TODO(schneiderfelipe): should this exist?
                         ]
                     },
+                    "default": "Opt+Freq",
                 },
+                # TODO(schneiderfelipe): implement ts_mode and ts_active_atoms
+                # in a very simple way (things will get interestiing when
+                # there is a way of selecting atoms on the screen.
+                # TODO(schneiderfelipe): implement options for IRC. They are
+                # important.
                 # TODO(schneiderfelipe): implement access to Z_solver and
                 # Z_maxiter in a details group about frequency calculations.
                 "charge": {
@@ -409,7 +415,8 @@ class InputGUI(Frame):
                         "QZPPD": "ma-def2-QZVPP",
                     },
                     "default": "TZP",
-                    "switch": lambda k: k["basis:family"] == "def2",
+                    "switch": lambda k: k["basis:family"] == "def2"
+                    and k["theory"] in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 "basis:cc": {
                     "group": "level of theory",
@@ -429,7 +436,8 @@ class InputGUI(Frame):
                     },
                     # TODO(schneiderfelipe): this should probably change!
                     "default": "TZP",
-                    "switch": lambda k: k["basis:family"] == "cc",
+                    "switch": lambda k: k["basis:family"] == "cc"
+                    and k["theory"] in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 "basis:pople": {
                     "group": "level of theory",
@@ -454,7 +462,8 @@ class InputGUI(Frame):
                         "TZPD": "6-311++G(2df,2pd)",
                     },
                     "default": "TZP",
-                    "switch": lambda k: k["basis:family"] == "Pople",
+                    "switch": lambda k: k["basis:family"] == "Pople"
+                    and k["theory"] in {"HF", "DFT", "MP2", "CCSD"},
                 },
                 # TODO(schneiderfelipe): implement a details group for basis
                 # sets and implement basis set decontraction there (e.g.,
@@ -478,7 +487,7 @@ class InputGUI(Frame):
                         "Excellent": 3,
                         "Extreme": 4,
                     },
-                    "default": "Fair",
+                    "default": "Good",
                     "switch": lambda k: k["theory"]
                     in {"HF", "DFT", "MP2", "CCSD"},
                 },
@@ -565,15 +574,15 @@ class InputGUI(Frame):
                     "help": ("Number of parallel processes to use."),
                     "widget": Spinbox,
                     "values": [2 ** n for n in range(6)],
-                    "default": 8,
+                    "default": 6,
                 },
                 "memory": {
                     "group": "acceleration",
                     "text": "Total memory",
                     "help": ("How much memory to use in total."),
                     "widget": Spinbox,
-                    "values": np.arange(6000, 18000, 500),
-                    "default": 11000,
+                    "values": np.arange(6000, 18001, 500),
+                    "default": 12000,
                 },
                 # TODO(schneiderfelipe): cavity construction in continuum
                 # solvation is also something that oftentimes produce
@@ -586,12 +595,13 @@ class InputGUI(Frame):
                 "solvation": {
                     "help": ("Whether implicit solvation should be used."),
                     "widget": Checkbutton,
-                    "default": False,
+                    "default": True,
                 },
                 "solvation:model": {
                     "text": "Solvation model",
                     "help": ("Which solvent model should be used."),
                     "values": ["CPCM", "SMD"],
+                    "default": "SMD",
                     "switch": lambda k: k["solvation"]
                     and k["theory"] != "DFTB",
                 },
@@ -701,6 +711,7 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": False,
+                    "switch": lambda k: k["theory"] != "DFTB",
                 },
                 "ecp": {
                     # "group": "level of theory",
@@ -731,7 +742,7 @@ class InputGUI(Frame):
                         "iterations."
                     ),
                     "widget": Spinbox,
-                    "values": ["Auto"] + list(range(100, 1001, 50)),
+                    "values": ["Auto"] + list(range(100, 501, 50)),
                 },
                 # TODO(schneiderfelipe): support the geometric counterpoise
                 # method for basis set superposition error (BSSE). This should
@@ -744,6 +755,63 @@ class InputGUI(Frame):
                 # TODO(schneiderfelipe): the following should support things
                 # like "COpt" in place of "Opt" for fixing bad internal
                 # coordinates (sometimes molecules explode due to that).
+                "geom:step": {
+                    "tab": "details",
+                    "group": "geometry convergence",
+                    "text": "Optimization method",
+                    "help": (
+                        "Which optimization method should be used for "
+                        "optimization convergence. 'Rational function' is "
+                        "probably the best method for minimization (followed "
+                        "by 'quasi-Newton') and 'partitioned Rational "
+                        "function' is probably the best method for "
+                        "transition state optimizations. Those probably best "
+                        "are the defaults ('Auto')."
+                    ),
+                    "values": {
+                        "Auto": None,
+                        "Rational function": "step rfo",
+                        "partitioned Rational function": "step prfo",
+                        "quasi-Newton": "step qn",
+                        "GDIIS": "step gdiis",
+                    },
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:trust": {
+                    "tab": "details",
+                    "group": "geometry convergence details",
+                    "text": "Trust radius",
+                    "help": (
+                        "Maximum geometry optimization step to take. "
+                        "Some tests showed that 0.2 is probably best "
+                        "when updating trust radii."
+                    ),
+                    "widget": Spinbox,
+                    "values": np.arange(0.1, 0.51, 0.05),
+                    "default": 0.2,
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:update_trust": {
+                    "tab": "details",
+                    "group": "geometry convergence details",
+                    "text": "Update trust radius",
+                    "help": (
+                        "Whether to update the maximum geometry "
+                        "optimization step."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    # TODO(schneiderfelipe): I know trust radius update works
+                    # with RFO (I've tested) and I am pretty sure that it works
+                    # with PRFO (because the manual suggests using the update
+                    # for OptTS). I definitely know the update does not work
+                    # with QN (I tested and got segfault; ORCA forum says
+                    # allowing this option would be a "conceptual bug"). I am
+                    # not sure about GDIIS (I believe the value gets ignored,
+                    # but I am not sure).
+                    "switch": lambda k: "Opt" in k["task"]
+                    and k["geom:step"] != "quasi-Newton",
+                },
                 "coordinates used": {
                     "tab": "details",
                     "group": "geometry convergence",
@@ -752,6 +820,7 @@ class InputGUI(Frame):
                         "optimization convergence."
                     ),
                     "values": ["Delocalized"],
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 "calculate frequencies": {
                     "tab": "details",
@@ -762,15 +831,7 @@ class InputGUI(Frame):
                     ),
                     "widget": Checkbutton,
                     "default": False,
-                },
-                "optimization method": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "help": (
-                        "Which optimization method should be used for "
-                        "optimization convergence."
-                    ),
-                    "values": ["Auto"],
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 "geom:maxiter": {
                     "tab": "details",
@@ -781,15 +842,19 @@ class InputGUI(Frame):
                         "iterations."
                     ),
                     "widget": Spinbox,
-                    "values": ["Auto"] + list(range(50, 1001, 25)),
+                    "values": list(range(30, 301, 10)),
+                    "switch": lambda k: "Opt" in k["task"],
                 },
-                "maximum step": {
+                "geom:tight": {
                     "tab": "details",
-                    "group": "geometry convergence details",
-                    "help": ("Maximum step."),
-                    "widget": Spinbox,
-                    "values": np.arange(0.1, 1.0, 0.05),
-                    "default": 0.3,
+                    "group": "geometry convergence",
+                    "text": "Tight geometry optimization",
+                    "help": (
+                        "Whether a tight geometry optimization should be done."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 "hessian update scheme": {
                     "tab": "details",
@@ -799,6 +864,7 @@ class InputGUI(Frame):
                         "optimization convergence."
                     ),
                     "values": ["Auto", "BFGS", "Bofill", "Powell"],
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 # TODO(schneiderfelipe): create a group for restarts in
                 # details that support reading a gbw
@@ -807,22 +873,20 @@ class InputGUI(Frame):
                     "group": "geometry convergence details",
                     "help": (
                         "Which initial model Hessian should be used for "
-                        "optimization convergence. 'Auto' probably means "
-                        "'Almloef'"
+                        "optimization convergence. 'Swart' is probably the "
+                        "best option, followed by 'Lindh' and 'Almlöf'."
                     ),
-                    # TODO(schneiderfelipe): sometimes an order similar to the
-                    # one below is the best thing possible, with the best or
-                    # most common first:
                     "values": {
-                        "Auto": None,
-                        "Calculate": "calc_hess true",
                         "Read": "inhess read",
+                        "Calculate": "calc_hess true",
                         "Swart": "inhess swart",
                         "Lindh": "inhess lindh",
-                        "Almloef": "inhess almloef",
+                        "Almlöf": "inhess almloef",
                         "Schlegel": "inhess schlegel",
                         "Diagonal": "inhess unit",
                     },
+                    "default": "Swart",
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 # TODO(schneiderfelipe): I don't see the need to set
                 # gradient, step and energy convergence criteria specifically
@@ -836,6 +900,7 @@ class InputGUI(Frame):
                     ),
                     "values": ["Loose", "Normal", "Tight", "VeryTight"],
                     "default": "Normal",
+                    "switch": lambda k: "Opt" in k["task"],
                 },
                 "freq:restart": {
                     "tab": "details",
@@ -854,7 +919,7 @@ class InputGUI(Frame):
                     "text": "Frequency scaling",
                     "help": ("Number to multiply all your frequency values."),
                     "widget": Spinbox,
-                    "values": np.arange(0.95, 1.05, 0.01),
+                    "values": np.arange(0.95, 1.051, 0.01),
                     "default": 1.0,
                 },
                 "nuclear model": {
@@ -1111,12 +1176,13 @@ class InputGUI(Frame):
         #         inp["!"].append("RHF")
 
         ri = None
-        if not v["ri"] and not v["dlpno"]:
-            ri = "NoRI"
-        elif v["theory"] == "DFT" and "gga" in v["dft:family"]:
-            ri = "RI"
-        elif v["ri:hf"] and v["ri:hf"] != "Auto":
-            ri = v["ri:hf"]
+        if v["theory"] != "DFTB":
+            if not v["ri"] and not v["dlpno"]:
+                ri = "NoRI"
+            elif v["theory"] == "DFT" and "gga" in v["dft:family"]:
+                ri = "RI"
+            elif v["ri:hf"] and v["ri:hf"] != "Auto":
+                ri = v["ri:hf"]
 
         use_auxj = False
         use_auxjk = False
@@ -1150,6 +1216,7 @@ class InputGUI(Frame):
         if (
             v["relativity"]
             or ri == "RIJK"
+            or v["theory"] == "DFTB"
             or (
                 v["theory"] == "DFT"
                 and (
@@ -1256,11 +1323,12 @@ class InputGUI(Frame):
                 inp["!"].append(f"CPCM({solvent})")
             else:
                 inp["cpcm"].append("smd true")
-                inp["cpcm"].append(f"smdsolvent '{solvent}'")
+                inp["cpcm"].append(f'smdsolvent "{solvent}"')
+
+        if v["geom:tight"]:
+            inp["!"].append("TightOpt")
 
         if v["numerical:quality"]:
-            if v["numerical:quality"] > 0 and "Opt" in task and "Freq" in task:
-                inp["!"].append("TightOpt")
             inp["!"].append(
                 {
                     -1: "LooseSCF",
@@ -1322,10 +1390,17 @@ class InputGUI(Frame):
         if v["geom:maxiter"] and v["geom:maxiter"] != "Auto":
             inp["geom"].append(f"maxiter {v['geom:maxiter']}")
 
+        inp["geom"].append(v["geom:step"])
+        if v["geom:trust"]:
+            trust_radius = -v["geom:trust"]
+            if v["geom:step"] != "step qn":
+                trust_radius *= {True: -1, False: 1}[v["geom:update_trust"]]
+            inp["geom"].append(f"trust {trust_radius}")
+
         if v["initial hessian"]:
             inp["geom"].append(v["initial hessian"])
             if v["initial hessian"] == "inhess read":
-                inp["geom"].append("inhessname 'freq.hess'")
+                inp["geom"].append('inhessname "freq.hess"')
             if v["initial hessian"] == "calc_hess true" and use_numfreq:
                 inp["geom"].append("numhess true")
 

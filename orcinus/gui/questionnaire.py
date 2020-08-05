@@ -8,6 +8,7 @@ from tkinter import BooleanVar
 from tkinter import DoubleVar
 from tkinter import IntVar
 from tkinter import StringVar
+from tkinter import TclError
 from tkinter.ttk import Checkbutton
 from tkinter.ttk import Combobox
 from tkinter.ttk import Frame
@@ -55,7 +56,11 @@ class Questionnaire(Frame):
                 values[name] = None
                 continue
 
-            values[name] = self.variable[name].get()
+            try:
+                values[name] = self.variable[name].get()
+            except TclError:
+                values[name] = self.fields[name]["default"]
+
             if values[name] == "None":
                 values[name] = None
 
@@ -106,7 +111,10 @@ class Questionnaire(Frame):
             state_path = os.path.join(DATA_DIR, self.state_filename)
             state = {}
             for name, _ in self.fields.items():
-                state[name] = self.variable[name].get()
+                try:
+                    state[name] = self.variable[name].get()
+                except TclError:
+                    state[name] = self.fields[name]["default"]
 
             with open(state_path, "wb") as f:
                 pickle.dump(state, f)
@@ -271,7 +279,13 @@ class Questionnaire(Frame):
         if self.fields is None:
             return
 
-        options = {name: self.variable[name].get() for name in self.variable}
+        options = {}
+        for name in self.variable:
+            try:
+                options[name] = self.variable[name].get()
+            except TclError:
+                options[name] = self.fields[name]["default"]
+
         for name, desc in self.fields.items():
             # TODO(schneiderfelipe): allow an analogous key "freeze", which
             # does exactly the same as switch, but enables/disables the widget

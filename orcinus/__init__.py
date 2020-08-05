@@ -41,11 +41,17 @@ class ORCAInput(MutableMapping):
             )
 
         for key, value in self.items():
-            if not isinstance(value, list) or key in inliners or key == "#":
+            if (
+                not isinstance(value, list)
+                or set(value) == {None}
+                or key in inliners
+                or key == "#"
+            ):
                 continue
             lines.append(f"\n%{key}")
             for item in value:
-                lines.append(f" {item}")
+                if item is not None:
+                    lines.append(f" {item}")
             lines.append("end")
 
         return "\n".join(lines)
