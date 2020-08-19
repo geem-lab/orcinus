@@ -733,283 +733,17 @@ class InputGUI(Frame):
                     "switch": lambda k: k["theory"]
                     in {"HF", "DFT", "MP2", "CCSD"},
                 },
-                "scf:maxiter": {
-                    "tab": "details",
-                    "group": "self consistent field",
-                    "text": "Maximum number of iterations",
-                    "help": (
-                        "Maximum number of self consistent field "
-                        "iterations."
-                    ),
-                    "widget": Spinbox,
-                    "values": ["Auto"] + list(range(100, 501, 50)),
-                },
-                # TODO(schneiderfelipe): support the geometric counterpoise
-                # method for basis set superposition error (BSSE). This should
-                # appear disabled for unavailable cases such as
-                # nonparameterized basis set, etc. Tell what is available in
-                # the help.
-                # TODO(schneiderfelipe): support coordinate manipulation as
-                # lists and support fixing coordinates/degrees of freedom
-                # ("Geometry constraints").
-                # TODO(schneiderfelipe): the following should support things
-                # like "COpt" in place of "Opt" for fixing bad internal
-                # coordinates (sometimes molecules explode due to that).
-                "geom:step": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "text": "Optimization method",
-                    "help": (
-                        "Which optimization method should be used for "
-                        "optimization convergence. 'Rational function' is "
-                        "probably the best method for minimization (followed "
-                        "by 'quasi-Newton') and 'partitioned Rational "
-                        "function' is probably the best method for "
-                        "transition state optimizations. Those probably best "
-                        "are the defaults ('Auto')."
-                    ),
-                    "values": {
-                        "Auto": None,
-                        "Rational function": "step rfo",
-                        "partitioned Rational function": "step prfo",
-                        "quasi-Newton": "step qn",
-                        "GDIIS": "step gdiis",
-                    },
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "geom:trust": {
-                    "tab": "details",
-                    "group": "geometry convergence details",
-                    "text": "Trust radius",
-                    "help": (
-                        "Maximum geometry optimization step to take. "
-                        "Some tests showed that 0.2 is probably best "
-                        "when updating trust radii."
-                    ),
-                    "widget": Spinbox,
-                    "values": np.arange(0.1, 0.51, 0.05),
-                    "default": 0.2,
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "geom:update_trust": {
-                    "tab": "details",
-                    "group": "geometry convergence details",
-                    "text": "Update trust radius",
-                    "help": (
-                        "Whether to update the maximum geometry "
-                        "optimization step."
-                    ),
-                    "widget": Checkbutton,
-                    "default": True,
-                    # TODO(schneiderfelipe): I know trust radius update works
-                    # with RFO (I've tested) and I am pretty sure that it works
-                    # with PRFO (because the manual suggests using the update
-                    # for OptTS). I definitely know the update does not work
-                    # with QN (I tested and got segfault; ORCA forum says
-                    # allowing this option would be a "conceptual bug"). I am
-                    # not sure about GDIIS (I believe the value gets ignored,
-                    # but I am not sure).
-                    "switch": lambda k: "Opt" in k["task"]
-                    and k["geom:step"] != "quasi-Newton",
-                },
-                "coordinates used": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "help": (
-                        "Which coordinates should be used for "
-                        "optimization convergence."
-                    ),
-                    "values": ["Delocalized"],
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "calculate frequencies": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "help": (
-                        "Whether a frequencies calculation should be "
-                        "done after optimization."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "geom:maxiter": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "text": "Maximum number of iterations",
-                    "help": (
-                        "Maximum number of geometry optimization "
-                        "iterations."
-                    ),
-                    "widget": Spinbox,
-                    "values": list(range(30, 301, 10)),
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "geom:tight": {
-                    "tab": "details",
-                    "group": "geometry convergence",
-                    "text": "Tight geometry optimization",
-                    "help": (
-                        "Whether a tight geometry optimization should be done."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "hessian update scheme": {
-                    "tab": "details",
-                    "group": "geometry convergence details",
-                    "help": (
-                        "Which Hessian update scheme should be used for "
-                        "optimization convergence."
-                    ),
-                    "values": ["Auto", "BFGS", "Bofill", "Powell"],
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                # TODO(schneiderfelipe): create a group for restarts in
-                # details that support reading a gbw
-                "initial hessian": {
-                    "tab": "details",
-                    "group": "geometry convergence details",
-                    "help": (
-                        "Which initial model Hessian should be used for "
-                        "optimization convergence. 'Swart' is probably the "
-                        "best option, followed by 'Lindh' and 'Almlöf'."
-                    ),
-                    "values": {
-                        "Read": "inhess read",
-                        "Calculate": "calc_hess true",
-                        "Swart": "inhess swart",
-                        "Lindh": "inhess lindh",
-                        "Almlöf": "inhess almloef",
-                        "Schlegel": "inhess schlegel",
-                        "Diagonal": "inhess unit",
-                    },
-                    "default": "Swart",
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                # TODO(schneiderfelipe): I don't see the need to set
-                # gradient, step and energy convergence criteria specifically
-                # if not necessary.
-                "convergence criteria": {
-                    "tab": "details",
-                    "group": "geometry convergence criteria",
-                    "help": (
-                        "Which convergence criteria should be used for "
-                        "optimization convergence."
-                    ),
-                    "values": ["Loose", "Normal", "Tight", "VeryTight"],
-                    "default": "Normal",
-                    "switch": lambda k: "Opt" in k["task"],
-                },
-                "freq:restart": {
-                    "tab": "details",
-                    "group": "frequencies",
-                    "text": "Restart frequencies calculation",
-                    "help": (
-                        "Whether a frequencies calculation should be "
-                        "restarted."
-                    ),
+                "excited states": {
+                    "tab": "properties",
+                    "text": "Excited states calculation",
+                    "help": ("Whether excited states should be calculated."),
                     "widget": Checkbutton,
                     "default": False,
                 },
-                "freq:scaling": {
-                    "tab": "details",
-                    "group": "frequencies",
-                    "text": "Frequency scaling",
-                    "help": ("Number to multiply all your frequency values."),
-                    "widget": Spinbox,
-                    "values": np.arange(0.95, 1.051, 0.01),
-                    "default": 1.0,
-                },
-                "nuclear model": {
-                    "tab": "details",
-                    "group": "relativity",
-                    "help": (
-                        "Which nuclear model should be used in relativistic "
-                        "approximations."
-                    ),
-                    "values": ["Point charge"],
-                },
-                # TODO(schneiderfelipe): TD-DFT for UV-vis is kind of a
-                # priority at the moment.
-                "Type of excitations": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": ("Which types of excitations to consider."),
-                    "values": ["Singlet and triplet"],
-                },
-                "method": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": ("Which excitation method to use."),
-                    "values": ["Davidson"],
-                },
-                # TODO(schneiderfelipe): Tamm-Dancoff approximation is an
-                # important approximation and deserves a nice spot in the
-                # interface.
-                "tda": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "text": "Tamm-Dancoff approximation",
-                    "help": (
-                        "Whether the Tamm-Dancoff approximation should "
-                        "be used."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                "velocity representation": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": (
-                        "Whether the velocity representation should be "
-                        "calculated."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                "ntos": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "text": "Natural transition orbitals",
-                    "help": (
-                        "Whether natural transition orbitals should be "
-                        "calculated."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                "rotatory strengths": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": (
-                        "Whether rotatory strengths should be calculated."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                "quadrupole intensities": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": (
-                        "Whether quadrupole intensities should be calculated."
-                    ),
-                    "widget": Checkbutton,
-                    "default": False,
-                },
-                # TODO(schneiderfelipe): this should give something like
-                #
-                #     %tddft
-                #      nroots 4
-                #     end
-                "number of excitations": {
-                    "tab": "properties",
-                    "group": "electronic excitations",
-                    "help": ("Number of excitations to consider."),
-                    "widget": Spinbox,
-                    "values": range(1, 101),
-                },
+                # TODO(schneiderfelipe): support RAMAN/IR and related stuff.
+                # Raman requires polazirabilities ("%elprop Polar 1 end") and
+                # may only work with numerical frequencies (please check). See
+                # <https://sites.google.com/site/orcainputlibrary/vibrational-frequencies>.
                 "shielding-h": {
                     "tab": "properties",
                     "group": "nuclear magnetic resonance",
@@ -1084,11 +818,303 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
-                # TODO(schneiderfelipe): support RAMAN/IR and related stuff.
-                # Raman requires polazirabilities ("%elprop Polar 1 end") and
-                # may only work with numerical frequencies (please check). See
-                # <https://sites.google.com/site/orcainputlibrary/vibrational-frequencies>.
-                #
+                "scf:maxiter": {
+                    "tab": "details",
+                    "group": "self consistent field",
+                    "text": "Maximum number of iterations",
+                    "help": (
+                        "Maximum number of self consistent field "
+                        "iterations."
+                    ),
+                    "widget": Spinbox,
+                    "values": ["Auto"] + list(range(100, 501, 50)),
+                },
+                # TODO(schneiderfelipe): support the geometric counterpoise
+                # method for basis set superposition error (BSSE). This should
+                # appear disabled for unavailable cases such as
+                # nonparameterized basis set, etc. Tell what is available in
+                # the help.
+                # TODO(schneiderfelipe): support coordinate manipulation as
+                # lists and support fixing coordinates/degrees of freedom
+                # ("Geometry constraints").
+                # TODO(schneiderfelipe): the following should support things
+                # like "COpt" in place of "Opt" for fixing bad internal
+                # coordinates (sometimes molecules explode due to that).
+                "geom:step": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "text": "Optimization method",
+                    "help": (
+                        "Which optimization method should be used for "
+                        "optimization convergence. 'Rational function' is "
+                        "probably the best method for minimization (followed "
+                        "by 'quasi-Newton') and 'partitioned Rational "
+                        "function' is probably the best method for "
+                        "transition state optimizations. Those probably best "
+                        "are the defaults ('Auto')."
+                    ),
+                    "values": {
+                        "Auto": None,
+                        "Rational function": "step rfo",
+                        "partitioned Rational function": "step prfo",
+                        "quasi-Newton": "step qn",
+                        "GDIIS": "step gdiis",
+                    },
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:trust": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "text": "Trust radius",
+                    "help": (
+                        "Maximum geometry optimization step to take. "
+                        "Some tests showed that 0.2 is probably best "
+                        "when updating trust radii."
+                    ),
+                    "widget": Spinbox,
+                    "values": np.arange(0.1, 0.51, 0.05),
+                    "default": 0.2,
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:update_trust": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "text": "Update trust radius",
+                    "help": (
+                        "Whether to update the maximum geometry "
+                        "optimization step."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    # TODO(schneiderfelipe): I know trust radius update works
+                    # with RFO (I've tested) and I am pretty sure that it works
+                    # with PRFO (because the manual suggests using the update
+                    # for OptTS). I definitely know the update does not work
+                    # with QN (I tested and got segfault; ORCA forum says
+                    # allowing this option would be a "conceptual bug"). I am
+                    # not sure about GDIIS (I believe the value gets ignored,
+                    # but I am not sure).
+                    "switch": lambda k: "Opt" in k["task"]
+                    and k["geom:step"] != "quasi-Newton",
+                },
+                "coordinates used": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "help": (
+                        "Which coordinates should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Delocalized"],
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "calculate frequencies": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "help": (
+                        "Whether a frequencies calculation should be "
+                        "done after optimization."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:maxiter": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "text": "Maximum number of iterations",
+                    "help": (
+                        "Maximum number of geometry optimization "
+                        "iterations."
+                    ),
+                    "widget": Spinbox,
+                    "values": list(range(30, 301, 10)),
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "geom:tight": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "text": "Tight geometry optimization",
+                    "help": (
+                        "Whether a tight geometry optimization should be done."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "hessian update scheme": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "help": (
+                        "Which Hessian update scheme should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Auto", "BFGS", "Bofill", "Powell"],
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                # TODO(schneiderfelipe): create a group for restarts in
+                # details that support reading a gbw
+                "initial hessian": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "help": (
+                        "Which initial model Hessian should be used for "
+                        "optimization convergence. 'Swart' is probably the "
+                        "best option, followed by 'Lindh' and 'Almlöf'."
+                    ),
+                    "values": {
+                        "Read": "inhess read",
+                        "Calculate": "calc_hess true",
+                        "Swart": "inhess swart",
+                        "Lindh": "inhess lindh",
+                        "Almlöf": "inhess almloef",
+                        "Schlegel": "inhess schlegel",
+                        "Diagonal": "inhess unit",
+                    },
+                    "default": "Swart",
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                # TODO(schneiderfelipe): I don't see the need to set
+                # gradient, step and energy convergence criteria specifically
+                # if not necessary.
+                "convergence criteria": {
+                    "tab": "details",
+                    "group": "geometry optimization",
+                    "help": (
+                        "Which convergence criteria should be used for "
+                        "optimization convergence."
+                    ),
+                    "values": ["Loose", "Normal", "Tight", "VeryTight"],
+                    "default": "Normal",
+                    "switch": lambda k: "Opt" in k["task"],
+                },
+                "freq:restart": {
+                    "tab": "details",
+                    "group": "frequencies",
+                    "text": "Restart frequencies calculation",
+                    "help": (
+                        "Whether a frequencies calculation should be "
+                        "restarted."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                },
+                "freq:scaling": {
+                    "tab": "details",
+                    "group": "frequencies",
+                    "text": "Frequency scaling",
+                    "help": ("Number to multiply all your frequency values."),
+                    "widget": Spinbox,
+                    "values": np.arange(0.95, 1.051, 0.01),
+                    "default": 1.0,
+                },
+                "nuclear model": {
+                    "tab": "details",
+                    "group": "relativity",
+                    "help": (
+                        "Which nuclear model should be used in relativistic "
+                        "approximations."
+                    ),
+                    "values": ["Point charge"],
+                },
+                "excited states:method": {
+                    "tab": "details",
+                    "group": "excited states calculation",
+                    "text": "Excited states calculation method",
+                    "help": ("Which excitation method to use."),
+                    "values": ["TD-DFT"],
+                    "switch": lambda k: k["excited states"],
+                },
+                "tddft:nroots": {
+                    "tab": "details",
+                    "group": "excited states calculation",
+                    "text": "Number of excited states",
+                    "help": ("Number of excited states to consider."),
+                    "widget": Spinbox,
+                    "values": range(1, 101),
+                    "default": 30,
+                    "switch": lambda k: k["excited states"]
+                    and k["excited states:method"] == "TD-DFT",
+                },
+                "tddft:tda": {
+                    "tab": "details",
+                    "group": "excited states calculation",
+                    "text": "Tamm-Dancoff approximation",
+                    "help": (
+                        "Whether the Tamm-Dancoff approximation should "
+                        "be used."
+                    ),
+                    "widget": Checkbutton,
+                    "default": True,
+                    "switch": lambda k: k["excited states"]
+                    and k["excited states:method"] == "TD-DFT",
+                },
+                "tddft:nto": {
+                    "tab": "details",
+                    "group": "excited states calculation",
+                    "text": "Natural transition orbitals",
+                    "help": (
+                        "Whether natural transition orbitals should be "
+                        "calculated."
+                    ),
+                    "widget": Checkbutton,
+                    "default": False,
+                    "switch": lambda k: k["excited states"]
+                    and k["excited states:method"] == "TD-DFT",
+                },
+                "tddft:maxdim": {
+                    "tab": "details",
+                    "group": "excited states calculation",
+                    "text": "Davidson expansion space",
+                    "help": ("Size of the Davidson expansion space."),
+                    "widget": Spinbox,
+                    "values": range(2, 361),
+                    "default": 10,
+                    "switch": lambda k: k["excited states"]
+                    and k["excited states:method"] == "TD-DFT",
+                },
+                # "Type of excitations": {
+                #     "tab": "details",
+                #     "group": "excited states calculation",
+                #     "help": ("Which types of excitations to consider."),
+                #     "values": ["Singlet and triplet"],
+                #     "switch": lambda k: k["excited states"]
+                #     and k["excited states:method"] == "TD-DFT",
+                # },
+                # "velocity representation": {
+                #     "tab": "details",
+                #     "group": "excited states calculation",
+                #     "help": (
+                #         "Whether the velocity representation should be "
+                #         "calculated."
+                #     ),
+                #     "widget": Checkbutton,
+                #     "default": False,
+                #     "switch": lambda k: k["excited states"]
+                #     and k["excited states:method"] == "TD-DFT",
+                # },
+                # "rotatory strengths": {
+                #     "tab": "details",
+                #     "group": "excited states calculation",
+                #     "help": (
+                #         "Whether rotatory strengths should be calculated."
+                #     ),
+                #     "widget": Checkbutton,
+                #     "default": False,
+                #     "switch": lambda k: k["excited states"]
+                #     and k["excited states:method"] == "TD-DFT",
+                # },
+                # "quadrupole intensities": {
+                #     "tab": "details",
+                #     "group": "excited states calculation",
+                #     "help": (
+                #         "Whether quadrupole intensities should be "
+                #         "calculated."
+                #     ),
+                #     "widget": Checkbutton,
+                #     "default": False,
+                #     "switch": lambda k: k["excited states"]
+                #     and k["excited states:method"] == "TD-DFT",
+                # },
                 # TODO(schneiderfelipe): support output keywords such as
                 # PrintBasis and PrintMOs.
                 "output:level": {
@@ -1341,7 +1367,9 @@ class InputGUI(Frame):
 
         if v["theory"] == "DFT":
             n_grid = v["numerical:quality"] + 3
-            # TODO(schneiderfelipe): TDDFT, NOCV and other calculations
+            if v["excited states:method"] == "TD-DFT":
+                n_grid += 1
+            # TODO(schneiderfelipe): NOCV and other similar property
             # calculations require the following:
             #
             #     n_grid += 1
@@ -1354,20 +1382,16 @@ class InputGUI(Frame):
                 inp["!"].append(f"FinalGrid{n_grid + 1}")
         if ri == "RIJCOSX":
             n_gridx = v["numerical:quality"] + 3
-            # TODO(schneiderfelipe): TDDFT calculations probably require
-            # the following:
-            #
-            #     n_gridx += 1
-            #
-            # (i.e., at least GridX5 to be good).
+            if "Opt" in task and "DLPNO-MP2" in theory:
+                n_gridx += 3
             # TODO(schneiderfelipe): GIAO/NMR and EPR calculations may require
             # the following:
             #
             #     n_gridx += 2
             #
             # (i.e., at least GridX6 to be good).
-            if "Opt" in task and "DLPNO-MP2" in theory:
-                n_gridx += 3
+            elif v["excited states:method"] == "TD-DFT":
+                n_gridx += 1
             if n_gridx > 3:
                 inp["!"].append(f"GridX{min(n_gridx, 9)}")
 
@@ -1411,6 +1435,15 @@ class InputGUI(Frame):
 
         if v["nprocs"] > 1:
             inp["pal"].append(f"nprocs {v['nprocs']}")
+
+        if v["excited states"]:
+            if v["excited states:method"] == "TD-DFT":
+                inp["tddft"].append(f"nroots {v['tddft:nroots']}")
+                inp["tddft"].append(f"maxdim {v['tddft:maxdim']}")
+                if not v["tddft:tda"]:
+                    inp["tddft"].append("tda false")
+                if v["tddft:nto"]:
+                    inp["tddft"].append("donto true")
 
         self.text.delete("1.0", "end")
         self.text.insert("1.0", inp.generate())
