@@ -373,15 +373,6 @@ class InputGUI(Frame):
                     "default": "D4",
                     "switch": lambda k: k["theory"] == "DFT",
                 },
-                # TODO(schneiderfelipe): create a details group for SCF
-                # convergence things such as solvers (e.g. DIIS, KDIIS,
-                # MORead), initial guesses (e.g, PModel, Hueckel), etc.. It
-                # is also nice to allow a stability analysis of the SCF
-                # wavefunction. In the future I also want to implement
-                # options for rotating orbitals.
-                # TODO(schneiderfelipe): some nice options for avoiding linear
-                # dependency problems are required in a special group for SCF
-                # convergence.
                 # TODO(schneiderfelipe): give support for other families such
                 # as ano (they also have aug-cc, ma-def2 and saug-ano/aug-ano).
                 # TODO(schneiderfelipe): extrapolation techniques are
@@ -818,6 +809,14 @@ class InputGUI(Frame):
                     "widget": Checkbutton,
                     "default": False,
                 },
+                # TODO(schneiderfelipe): create a details group for SCF
+                # convergence things such as solvers (e.g. DIIS, KDIIS). It
+                # is also nice to allow a stability analysis of the SCF
+                # wavefunction. In the future I also want to implement
+                # options for rotating orbitals.
+                # TODO(schneiderfelipe): some nice options for avoiding linear
+                # dependency problems are required in a special group for SCF
+                # convergence.
                 "scf:maxiter": {
                     "tab": "details",
                     "group": "self consistent field",
@@ -828,6 +827,22 @@ class InputGUI(Frame):
                     ),
                     "widget": Spinbox,
                     "values": ["Auto"] + list(range(100, 501, 50)),
+                },
+                "scf:guess": {
+                    "tab": "details",
+                    "group": "self consistent field",
+                    "text": "Guess wavefunction",
+                    "help": (
+                        "Which wavefunction guess to use."
+                    ),
+                    "values": {
+                        "Read": "guess moread",
+                        "Model potential": "guess pmodel",
+                        "Extended Hückel": "guess hueckel",
+                        "Polarized atomic densities": "guess patom",
+                        "One electron matrix": "guess hcore",
+                    },
+                    "default": "Model potential",
                 },
                 # TODO(schneiderfelipe): support the geometric counterpoise
                 # method for basis set superposition error (BSSE). This should
@@ -1411,6 +1426,10 @@ class InputGUI(Frame):
 
         if v["scf:maxiter"] and v["scf:maxiter"] != "Auto":
             inp["scf"].append(f"maxiter {v['scf:maxiter']}")
+        inp["scf"].append(v["scf:guess"])
+        if v["scf:guess"] == "guess moread":
+            inp["scf"].append('moinp "orbs.gbw"')
+
         if v["geom:maxiter"] and v["geom:maxiter"] != "Auto":
             inp["geom"].append(f"maxiter {v['geom:maxiter']}")
 
