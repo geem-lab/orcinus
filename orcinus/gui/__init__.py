@@ -43,7 +43,7 @@ def main():
 class InputGUI(Frame):
     """Interface for input generation."""
 
-    def __init__(self, master=None, padx=1, pady=2, column_minsize=240):
+    def __init__(self, master=None, padx=1, pady=2, column_minsize=100):
         """Construct object."""
         super().__init__(master)
         self.padx = padx
